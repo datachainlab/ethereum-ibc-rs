@@ -2,8 +2,8 @@ use crate::{
     client_state::ClientState,
     consensus_state::{ConsensusState, TrustedConsensusState},
     errors::Error,
-    header::AccountUpdateInfo,
     internal_prelude::*,
+    types::AccountUpdateInfo,
 };
 use ethereum_consensus::{
     compute::{compute_sync_committee_period_at_slot, compute_timestamp_at_slot},

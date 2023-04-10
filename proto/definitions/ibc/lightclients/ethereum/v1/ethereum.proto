@@ -33,18 +33,17 @@ message ConsensusState {
 }
 
 message Header {
-  ibc.core.client.v1.Height trusted_height = 1;
-  TrustedSyncCommittee trusted_sync_committee = 2;
-
-  LightClientUpdate consensus_update = 3;
-  ExecutionUpdate execution_update = 4;
-  AccountUpdate account_update = 5;
-  uint64 timestamp = 6;
+  TrustedSyncCommittee trusted_sync_committee = 1;
+  LightClientUpdate consensus_update = 2;
+  ExecutionUpdate execution_update = 3;
+  AccountUpdate account_update = 4;
+  uint64 timestamp = 5;
 }
 
 message TrustedSyncCommittee {
-  SyncCommittee sync_committee = 1;
-  bool is_next = 2;
+  ibc.core.client.v1.Height trusted_height = 1;
+  SyncCommittee sync_committee = 2;
+  bool is_next = 3;
 }
 
 message ForkParameters {

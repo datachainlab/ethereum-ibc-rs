@@ -7,6 +7,7 @@ pub mod consensus_state;
 pub mod errors;
 pub mod header;
 pub mod misbehaviour;
+pub mod types;
 pub mod update;
 
 mod internal_prelude {
