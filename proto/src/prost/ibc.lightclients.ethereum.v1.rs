@@ -180,3 +180,27 @@ pub struct BeaconBlockHeader {
     #[prost(bytes = "vec", tag = "5")]
     pub body_root: ::prost::alloc::vec::Vec<u8>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct FinalizedHeaderMisbehaviour {
+    #[prost(string, tag = "1")]
+    pub client_id: ::prost::alloc::string::String,
+    #[prost(message, optional, tag = "2")]
+    pub trusted_sync_committee: ::core::option::Option<TrustedSyncCommittee>,
+    #[prost(message, optional, tag = "3")]
+    pub consensus_update_1: ::core::option::Option<LightClientUpdate>,
+    #[prost(message, optional, tag = "4")]
+    pub consensus_update_2: ::core::option::Option<LightClientUpdate>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct NextSyncCommitteeMisbehaviour {
+    #[prost(string, tag = "1")]
+    pub client_id: ::prost::alloc::string::String,
+    #[prost(message, optional, tag = "2")]
+    pub trusted_sync_committee: ::core::option::Option<TrustedSyncCommittee>,
+    #[prost(message, optional, tag = "3")]
+    pub consensus_update_1: ::core::option::Option<LightClientUpdate>,
+    #[prost(message, optional, tag = "4")]
+    pub consensus_update_2: ::core::option::Option<LightClientUpdate>,
+}

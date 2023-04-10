@@ -108,3 +108,17 @@ message BeaconBlockHeader {
   bytes state_root = 4;
   bytes body_root = 5;
 }
+
+message FinalizedHeaderMisbehaviour {
+  string client_id = 1;
+  TrustedSyncCommittee trusted_sync_committee = 2;
+  LightClientUpdate consensus_update_1 = 3;
+  LightClientUpdate consensus_update_2 = 4;
+}
+
+message NextSyncCommitteeMisbehaviour {
+  string client_id = 1;
+  TrustedSyncCommittee trusted_sync_committee = 2;
+  LightClientUpdate consensus_update_1 = 3;
+  LightClientUpdate consensus_update_2 = 4;
+}
