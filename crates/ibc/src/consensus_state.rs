@@ -24,6 +24,7 @@ pub struct ConsensusState {
     pub storage_root: CommitmentRoot,
     /// timestamp from execution payload
     pub timestamp: u64,
+    /// aggregate public key of current sync committee
     pub current_sync_committee: PublicKey,
     /// aggregate public key of next sync committee
     pub next_sync_committee: Option<PublicKey>,

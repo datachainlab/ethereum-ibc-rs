@@ -7,7 +7,7 @@ use ethereum_consensus::{
     types::U64,
 };
 use ibc::{
-    core::{ics02_client::error::ClientError, ContextError},
+    core::{ics02_client::error::ClientError, ics24_host::error::ValidationError, ContextError},
     Height,
 };
 
@@ -52,6 +52,8 @@ pub enum Error {
     SSZDeserialize(ssz_rs::DeserializeError),
     /// ics02 error: `{0}`
     ICS02(ClientError),
+    /// ics24 error: `{0}`
+    ICS24(ValidationError),
 }
 
 impl From<ethereum_light_client_verifier::errors::Error> for Error {
@@ -89,6 +91,12 @@ impl From<Error> for ContextError {
 impl From<ClientError> for Error {
     fn from(value: ClientError) -> Self {
         Self::ICS02(value)
+    }
+}
+
+impl From<ValidationError> for Error {
+    fn from(value: ValidationError) -> Self {
+        Self::ICS24(value)
     }
 }
 

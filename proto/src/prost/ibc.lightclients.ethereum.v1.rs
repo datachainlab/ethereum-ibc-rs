@@ -50,26 +50,26 @@ pub struct ConsensusState {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Header {
     #[prost(message, optional, tag = "1")]
-    pub trusted_height: ::core::option::Option<
-        super::super::super::core::client::v1::Height,
-    >,
-    #[prost(message, optional, tag = "2")]
     pub trusted_sync_committee: ::core::option::Option<TrustedSyncCommittee>,
-    #[prost(message, optional, tag = "3")]
+    #[prost(message, optional, tag = "2")]
     pub consensus_update: ::core::option::Option<LightClientUpdate>,
-    #[prost(message, optional, tag = "4")]
+    #[prost(message, optional, tag = "3")]
     pub execution_update: ::core::option::Option<ExecutionUpdate>,
-    #[prost(message, optional, tag = "5")]
+    #[prost(message, optional, tag = "4")]
     pub account_update: ::core::option::Option<AccountUpdate>,
-    #[prost(uint64, tag = "6")]
+    #[prost(uint64, tag = "5")]
     pub timestamp: u64,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TrustedSyncCommittee {
     #[prost(message, optional, tag = "1")]
+    pub trusted_height: ::core::option::Option<
+        super::super::super::core::client::v1::Height,
+    >,
+    #[prost(message, optional, tag = "2")]
     pub sync_committee: ::core::option::Option<SyncCommittee>,
-    #[prost(bool, tag = "2")]
+    #[prost(bool, tag = "3")]
     pub is_next: bool,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -179,4 +179,28 @@ pub struct BeaconBlockHeader {
     pub state_root: ::prost::alloc::vec::Vec<u8>,
     #[prost(bytes = "vec", tag = "5")]
     pub body_root: ::prost::alloc::vec::Vec<u8>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct FinalizedHeaderMisbehaviour {
+    #[prost(string, tag = "1")]
+    pub client_id: ::prost::alloc::string::String,
+    #[prost(message, optional, tag = "2")]
+    pub trusted_sync_committee: ::core::option::Option<TrustedSyncCommittee>,
+    #[prost(message, optional, tag = "3")]
+    pub consensus_update_1: ::core::option::Option<LightClientUpdate>,
+    #[prost(message, optional, tag = "4")]
+    pub consensus_update_2: ::core::option::Option<LightClientUpdate>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct NextSyncCommitteeMisbehaviour {
+    #[prost(string, tag = "1")]
+    pub client_id: ::prost::alloc::string::String,
+    #[prost(message, optional, tag = "2")]
+    pub trusted_sync_committee: ::core::option::Option<TrustedSyncCommittee>,
+    #[prost(message, optional, tag = "3")]
+    pub consensus_update_1: ::core::option::Option<LightClientUpdate>,
+    #[prost(message, optional, tag = "4")]
+    pub consensus_update_2: ::core::option::Option<LightClientUpdate>,
 }
