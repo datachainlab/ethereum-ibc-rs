@@ -77,16 +77,8 @@ pub struct TrustedSyncCommittee {
 pub struct ForkParameters {
     #[prost(bytes = "vec", tag = "1")]
     pub genesis_fork_version: ::prost::alloc::vec::Vec<u8>,
-    #[prost(uint64, tag = "2")]
-    pub genesis_slot: u64,
-    #[prost(message, optional, tag = "3")]
-    pub altair: ::core::option::Option<Fork>,
-    #[prost(message, optional, tag = "4")]
-    pub bellatrix: ::core::option::Option<Fork>,
-    #[prost(message, optional, tag = "5")]
-    pub capella: ::core::option::Option<Fork>,
-    #[prost(message, optional, tag = "6")]
-    pub eip4844: ::core::option::Option<Fork>,
+    #[prost(message, repeated, tag = "2")]
+    pub forks: ::prost::alloc::vec::Vec<Fork>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

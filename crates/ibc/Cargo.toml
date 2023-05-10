@@ -16,5 +16,5 @@ hex = { version = "0.4.3", default-features = false, features = ["alloc", "serde
 ssz-rs = { git = "https://github.com/bluele/ssz_rs", branch = "serde-no-std", default-features = false, features = ["serde"] }
 
 ethereum-ibc-proto = { path = "../../proto", default-features = false }
-ethereum-consensus = { git = "https://github.com/datachainlab/ethereum-light-client-rs", rev = "1ac6905ad7020fd377e66e0ac116d41509cca1fe", default-features = false }
-ethereum-light-client-verifier = { git = "https://github.com/datachainlab/ethereum-light-client-rs", rev = "1ac6905ad7020fd377e66e0ac116d41509cca1fe", default-features = false }
+ethereum-consensus = { git = "https://github.com/datachainlab/ethereum-light-client-rs", rev = "aac304f27372e8a0fb950522ee9cd6f41e43f56f", default-features = false }
+ethereum-light-client-verifier = { git = "https://github.com/datachainlab/ethereum-light-client-rs", rev = "aac304f27372e8a0fb950522ee9cd6f41e43f56f", default-features = false }

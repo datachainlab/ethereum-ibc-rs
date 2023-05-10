@@ -48,12 +48,7 @@ message TrustedSyncCommittee {
 
 message ForkParameters {
   bytes genesis_fork_version = 1;
-  uint64 genesis_slot = 2;
-
-  Fork altair = 3;
-  Fork bellatrix = 4;
-  Fork capella = 5;
-  Fork eip4844 = 6;
+  repeated Fork forks = 2;
 }
 
 message Fraction {
