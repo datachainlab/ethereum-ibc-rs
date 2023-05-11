@@ -8,7 +8,7 @@ use crate::{eth_client_type, internal_prelude::*};
 use core::time::Duration;
 use ethereum_consensus::beacon::{Epoch, Root, Slot, Version};
 use ethereum_consensus::context::ChainContext;
-use ethereum_consensus::fork::ForkParameters;
+use ethereum_consensus::fork::{ForkParameter, ForkParameters};
 use ethereum_consensus::preset;
 use ethereum_consensus::types::{Address, H256, U64};
 use ethereum_ibc_proto::ibc::lightclients::ethereum::v1::{ClientState as RawClientState, Fork};
@@ -90,7 +90,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize> ClientState<SYNC_COMMITTEE_SIZE> {
                 .unix_timestamp() as u64,
         );
         let current_slot = (current_timestamp - self.genesis_time) / self.seconds_per_slot
-            + self.fork_parameters.genesis_slot;
+            + self.fork_parameters.genesis_slot();
         LightClientContext::new(
             self.fork_parameters.clone(),
             self.seconds_per_slot,
@@ -549,32 +549,22 @@ impl<const SYNC_COMMITTEE_SIZE: usize> TryFrom<RawClientState>
             version
         }
 
-        let fork_parameters = value.fork_parameters.unwrap();
+        let raw_fork_parameters = value.fork_parameters.unwrap();
+        let fork_parameters = ForkParameters::new(
+            bytes_to_version(raw_fork_parameters.genesis_fork_version),
+            raw_fork_parameters
+                .forks
+                .into_iter()
+                .map(|f| ForkParameter::new(bytes_to_version(f.version), f.epoch.into()))
+                .collect(),
+        );
+        fork_parameters.validate()?;
         let trust_level = value.trust_level.unwrap();
         Ok(Self {
             genesis_validators_root: H256::from_slice(&value.genesis_validators_root),
             min_sync_committee_participants: value.min_sync_committee_participants.into(),
             genesis_time: value.genesis_time.into(),
-            fork_parameters: ForkParameters {
-                genesis_fork_version: bytes_to_version(fork_parameters.genesis_fork_version),
-                genesis_slot: fork_parameters.genesis_slot.into(),
-                altair_fork_version: bytes_to_version(
-                    fork_parameters.altair.clone().unwrap().version,
-                ),
-                altair_fork_epoch: fork_parameters.altair.unwrap().epoch.into(),
-                bellatrix_fork_version: bytes_to_version(
-                    fork_parameters.bellatrix.clone().unwrap().version,
-                ),
-                bellatrix_fork_epoch: fork_parameters.bellatrix.unwrap().epoch.into(),
-                capella_fork_version: bytes_to_version(
-                    fork_parameters.capella.clone().unwrap().version,
-                ),
-                capella_fork_epoch: fork_parameters.capella.unwrap().epoch.into(),
-                eip4844_fork_version: bytes_to_version(
-                    fork_parameters.eip4844.clone().unwrap().version,
-                ),
-                eip4844_fork_epoch: fork_parameters.eip4844.unwrap().epoch.into(),
-            },
+            fork_parameters,
             seconds_per_slot: value.seconds_per_slot.into(),
             slots_per_epoch: value.slots_per_epoch.into(),
             epochs_per_sync_committee_period: value.epochs_per_sync_committee_period.into(),
@@ -618,24 +608,12 @@ impl<const SYNC_COMMITTEE_SIZE: usize> From<ClientState<SYNC_COMMITTEE_SIZE>> fo
             min_sync_committee_participants: value.min_sync_committee_participants.into(),
             genesis_time: value.genesis_time.into(),
             fork_parameters: Some(ProtoForkParameters {
-                genesis_fork_version: version_to_bytes(fork_parameters.genesis_fork_version),
-                genesis_slot: fork_parameters.genesis_slot.into(),
-                altair: Some(make_fork(
-                    fork_parameters.altair_fork_version,
-                    fork_parameters.altair_fork_epoch,
-                )),
-                bellatrix: Some(make_fork(
-                    fork_parameters.bellatrix_fork_version,
-                    fork_parameters.bellatrix_fork_epoch,
-                )),
-                capella: Some(make_fork(
-                    fork_parameters.capella_fork_version,
-                    fork_parameters.capella_fork_epoch,
-                )),
-                eip4844: Some(make_fork(
-                    fork_parameters.eip4844_fork_version,
-                    fork_parameters.eip4844_fork_epoch,
-                )),
+                genesis_fork_version: version_to_bytes(fork_parameters.genesis_version),
+                forks: fork_parameters
+                    .forks
+                    .into_iter()
+                    .map(|f| make_fork(f.version, f.epoch))
+                    .collect(),
             }),
             seconds_per_slot: value.seconds_per_slot.into(),
             slots_per_epoch: value.slots_per_epoch.into(),
