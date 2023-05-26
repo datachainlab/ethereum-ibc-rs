@@ -44,7 +44,7 @@ pub enum Error {
     },
     /// unexpected timestamp: expected={0} got={1}
     UnexpectedTimestamp(u64, u64),
-    /// ethereum consensus error
+    /// ethereum consensus error: `{0}`
     EthereumConsensusError(ethereum_consensus::errors::Error),
     /// decode error: `{0}`
     Decode(prost::DecodeError),
