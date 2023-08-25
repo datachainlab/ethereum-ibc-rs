@@ -21,13 +21,19 @@ pub struct ClientState {
     pub ibc_commitments_slot: ::prost::alloc::vec::Vec<u8>,
     #[prost(message, optional, tag = "10")]
     pub trust_level: ::core::option::Option<Fraction>,
-    #[prost(uint64, tag = "11")]
-    pub trusting_period: u64,
-    #[prost(uint64, tag = "12")]
-    pub latest_slot: u64,
+    #[prost(message, optional, tag = "11")]
+    pub trusting_period: ::core::option::Option<
+        super::super::super::super::google::protobuf::Duration,
+    >,
+    #[prost(message, optional, tag = "12")]
+    pub max_clock_drift: ::core::option::Option<
+        super::super::super::super::google::protobuf::Duration,
+    >,
     #[prost(uint64, tag = "13")]
+    pub latest_slot: u64,
+    #[prost(uint64, tag = "14")]
     pub latest_execution_block_number: u64,
-    #[prost(message, optional, tag = "14")]
+    #[prost(message, optional, tag = "15")]
     pub frozen_height: ::core::option::Option<
         super::super::super::core::client::v1::Height,
     >,

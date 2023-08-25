@@ -17,94 +17,94 @@ pub mod protobuf {
 
     #[allow(dead_code)]
     const NANOS_PER_SECOND: i32 = 1_000_000_000;
-    // const NANOS_MAX: i32 = NANOS_PER_SECOND - 1;
+    const NANOS_MAX: i32 = NANOS_PER_SECOND - 1;
 
-    // impl Duration {
-    //     /// Normalizes the duration to a canonical format.
-    //     pub fn normalize(&mut self) {
-    //         // Make sure nanos is in the range.
-    //         if self.nanos <= -NANOS_PER_SECOND || self.nanos >= NANOS_PER_SECOND {
-    //             if let Some(seconds) = self
-    //                 .seconds
-    //                 .checked_add((self.nanos / NANOS_PER_SECOND) as i64)
-    //             {
-    //                 self.seconds = seconds;
-    //                 self.nanos %= NANOS_PER_SECOND;
-    //             } else if self.nanos < 0 {
-    //                 // Negative overflow! Set to the least normal value.
-    //                 self.seconds = i64::MIN;
-    //                 self.nanos = -NANOS_MAX;
-    //             } else {
-    //                 // Positive overflow! Set to the greatest normal value.
-    //                 self.seconds = i64::MAX;
-    //                 self.nanos = NANOS_MAX;
-    //             }
-    //         }
+    impl Duration {
+        /// Normalizes the duration to a canonical format.
+        pub fn normalize(&mut self) {
+            // Make sure nanos is in the range.
+            if self.nanos <= -NANOS_PER_SECOND || self.nanos >= NANOS_PER_SECOND {
+                if let Some(seconds) = self
+                    .seconds
+                    .checked_add((self.nanos / NANOS_PER_SECOND) as i64)
+                {
+                    self.seconds = seconds;
+                    self.nanos %= NANOS_PER_SECOND;
+                } else if self.nanos < 0 {
+                    // Negative overflow! Set to the least normal value.
+                    self.seconds = i64::MIN;
+                    self.nanos = -NANOS_MAX;
+                } else {
+                    // Positive overflow! Set to the greatest normal value.
+                    self.seconds = i64::MAX;
+                    self.nanos = NANOS_MAX;
+                }
+            }
 
-    //         // nanos should have the same sign as seconds.
-    //         if self.seconds < 0 && self.nanos > 0 {
-    //             if let Some(seconds) = self.seconds.checked_add(1) {
-    //                 self.seconds = seconds;
-    //                 self.nanos -= NANOS_PER_SECOND;
-    //             } else {
-    //                 // Positive overflow! Set to the greatest normal value.
-    //                 debug_assert_eq!(self.seconds, i64::MAX);
-    //                 self.nanos = NANOS_MAX;
-    //             }
-    //         } else if self.seconds > 0 && self.nanos < 0 {
-    //             if let Some(seconds) = self.seconds.checked_sub(1) {
-    //                 self.seconds = seconds;
-    //                 self.nanos += NANOS_PER_SECOND;
-    //             } else {
-    //                 // Negative overflow! Set to the least normal value.
-    //                 debug_assert_eq!(self.seconds, i64::MIN);
-    //                 self.nanos = -NANOS_MAX;
-    //             }
-    //         }
-    //     }
-    // }
+            // nanos should have the same sign as seconds.
+            if self.seconds < 0 && self.nanos > 0 {
+                if let Some(seconds) = self.seconds.checked_add(1) {
+                    self.seconds = seconds;
+                    self.nanos -= NANOS_PER_SECOND;
+                } else {
+                    // Positive overflow! Set to the greatest normal value.
+                    debug_assert_eq!(self.seconds, i64::MAX);
+                    self.nanos = NANOS_MAX;
+                }
+            } else if self.seconds > 0 && self.nanos < 0 {
+                if let Some(seconds) = self.seconds.checked_sub(1) {
+                    self.seconds = seconds;
+                    self.nanos += NANOS_PER_SECOND;
+                } else {
+                    // Negative overflow! Set to the least normal value.
+                    debug_assert_eq!(self.seconds, i64::MIN);
+                    self.nanos = -NANOS_MAX;
+                }
+            }
+        }
+    }
 
-    // /// Converts a `std::time::Duration` to a `Duration`.
-    // impl From<time::Duration> for Duration {
-    //     fn from(duration: time::Duration) -> Duration {
-    //         let seconds = duration.as_secs();
-    //         let seconds = if seconds > i64::MAX as u64 {
-    //             i64::MAX
-    //         } else {
-    //             seconds as i64
-    //         };
-    //         let nanos = duration.subsec_nanos();
-    //         let nanos = if nanos > i32::MAX as u32 {
-    //             i32::MAX
-    //         } else {
-    //             nanos as i32
-    //         };
-    //         let mut duration = Duration { seconds, nanos };
-    //         duration.normalize();
-    //         duration
-    //     }
-    // }
+    /// Converts a `std::time::Duration` to a `Duration`.
+    impl From<time::Duration> for Duration {
+        fn from(duration: time::Duration) -> Duration {
+            let seconds = duration.as_secs();
+            let seconds = if seconds > i64::MAX as u64 {
+                i64::MAX
+            } else {
+                seconds as i64
+            };
+            let nanos = duration.subsec_nanos();
+            let nanos = if nanos > i32::MAX as u32 {
+                i32::MAX
+            } else {
+                nanos as i32
+            };
+            let mut duration = Duration { seconds, nanos };
+            duration.normalize();
+            duration
+        }
+    }
 
-    // impl TryFrom<Duration> for time::Duration {
-    //     type Error = time::Duration;
+    impl TryFrom<Duration> for time::Duration {
+        type Error = time::Duration;
 
-    //     /// Converts a `Duration` to a result containing a positive (`Ok`) or negative (`Err`)
-    //     /// `std::time::Duration`.
-    //     fn try_from(mut duration: Duration) -> Result<time::Duration, time::Duration> {
-    //         duration.normalize();
-    //         if duration.seconds >= 0 {
-    //             Ok(time::Duration::new(
-    //                 duration.seconds as u64,
-    //                 duration.nanos as u32,
-    //             ))
-    //         } else {
-    //             Err(time::Duration::new(
-    //                 (-duration.seconds) as u64,
-    //                 (-duration.nanos) as u32,
-    //             ))
-    //         }
-    //     }
-    // }
+        /// Converts a `Duration` to a result containing a positive (`Ok`) or negative (`Err`)
+        /// `std::time::Duration`.
+        fn try_from(mut duration: Duration) -> Result<time::Duration, time::Duration> {
+            duration.normalize();
+            if duration.seconds >= 0 {
+                Ok(time::Duration::new(
+                    duration.seconds as u64,
+                    duration.nanos as u32,
+                ))
+            } else {
+                Err(time::Duration::new(
+                    (-duration.seconds) as u64,
+                    (-duration.nanos) as u32,
+                ))
+            }
+        }
+    }
 
     impl Timestamp {
         /// Normalizes the timestamp to a canonical format.

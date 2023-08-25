@@ -56,6 +56,7 @@ pub struct ClientState<const SYNC_COMMITTEE_SIZE: usize> {
     /// Light Client parameters
     pub trust_level: Fraction,
     pub trusting_period: Duration,
+    pub max_clock_drift: Duration,
 
     /// State
     pub latest_slot: Slot,
@@ -571,7 +572,16 @@ impl<const SYNC_COMMITTEE_SIZE: usize> TryFrom<RawClientState>
             ibc_address: value.ibc_address.as_slice().try_into()?,
             ibc_commitments_slot: H256::from_slice(&value.ibc_commitments_slot),
             trust_level: Fraction::new(trust_level.numerator, trust_level.denominator),
-            trusting_period: Duration::from_secs(value.trusting_period),
+            trusting_period: value
+                .trusting_period
+                .ok_or(Error::MissingTrustingPeriod)?
+                .try_into()
+                .map_err(|_| Error::MissingTrustingPeriod)?,
+            max_clock_drift: value
+                .max_clock_drift
+                .ok_or(Error::NegativeMaxClockDrift)?
+                .try_into()
+                .map_err(|_| Error::NegativeMaxClockDrift)?,
             latest_slot: value.latest_slot.into(),
             latest_execution_block_number: value.latest_execution_block_number.into(),
             frozen_height: value
@@ -624,7 +634,8 @@ impl<const SYNC_COMMITTEE_SIZE: usize> From<ClientState<SYNC_COMMITTEE_SIZE>> fo
                 numerator: value.trust_level.numerator,
                 denominator: value.trust_level.denominator,
             }),
-            trusting_period: value.trusting_period.as_secs(),
+            trusting_period: Some(value.trusting_period.into()),
+            max_clock_drift: Some(value.max_clock_drift.into()),
             latest_slot: value.latest_slot.into(),
             latest_execution_block_number: value.latest_execution_block_number.into(),
             frozen_height: value.frozen_height.map(|h| ProtoHeight {

@@ -44,6 +44,10 @@ pub enum Error {
     },
     /// unexpected timestamp: expected={0} got={1}
     UnexpectedTimestamp(u64, u64),
+    /// missing trusting period
+    MissingTrustingPeriod,
+    /// negative max clock drift
+    NegativeMaxClockDrift,
     /// ethereum consensus error: `{0}`
     EthereumConsensusError(ethereum_consensus::errors::Error),
     /// decode error: `{0}`
