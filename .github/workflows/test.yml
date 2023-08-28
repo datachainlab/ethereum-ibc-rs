@@ -1,5 +1,11 @@
 name: test
-on: [push, pull_request]
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -8,3 +14,5 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo fmt --all -- --check
       - run: cargo test
+      - run: make lint-tools
+      - run: make lint
