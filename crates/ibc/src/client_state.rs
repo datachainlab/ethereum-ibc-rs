@@ -192,6 +192,48 @@ impl<const SYNC_COMMITTEE_SIZE: usize> ClientState<SYNC_COMMITTEE_SIZE> {
         // }
         Ok(())
     }
+
+    fn validate(&self) -> Result<(), Error> {
+        if self.genesis_validators_root == Root::default() {
+            Err(Error::UninitializedClientStateField(
+                "genesis_validators_root",
+            ))
+        } else if self.min_sync_committee_participants == U64::default() {
+            Err(Error::UninitializedClientStateField(
+                "min_sync_committee_participants",
+            ))
+        } else if self.genesis_time == U64::default() {
+            Err(Error::UninitializedClientStateField("genesis_time"))
+        } else if self.fork_parameters == ForkParameters::default() {
+            Err(Error::UninitializedClientStateField("fork_parameters"))
+        } else if self.seconds_per_slot == U64::default() {
+            Err(Error::UninitializedClientStateField("seconds_per_slot"))
+        } else if self.slots_per_epoch == Slot::default() {
+            Err(Error::UninitializedClientStateField("slots_per_epoch"))
+        } else if self.epochs_per_sync_committee_period == U64::default() {
+            Err(Error::UninitializedClientStateField(
+                "epochs_per_sync_committee_period",
+            ))
+        } else if self.ibc_address == Address::default() {
+            Err(Error::UninitializedClientStateField("ibc_address"))
+        } else if self.ibc_commitments_slot == H256::default() {
+            Err(Error::UninitializedClientStateField("ibc_commitments_slot"))
+        } else if self.trust_level == Fraction::default() {
+            Err(Error::UninitializedClientStateField("trust_level"))
+        } else if self.trusting_period == Duration::default() {
+            Err(Error::UninitializedClientStateField("trusting_period"))
+        } else if self.max_clock_drift == Duration::default() {
+            Err(Error::UninitializedClientStateField("max_clock_drift"))
+        } else if self.latest_slot == Slot::default() {
+            Err(Error::UninitializedClientStateField("latest_slot"))
+        } else if self.latest_execution_block_number == U64::default() {
+            Err(Error::UninitializedClientStateField(
+                "latest_execution_block_number",
+            ))
+        } else {
+            Ok(())
+        }
+    }
 }
 
 impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMMITTEE_SIZE> {
@@ -224,8 +266,10 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
         &self,
         consensus_state: Any,
     ) -> Result<Box<dyn Ics02ConsensusState>, ClientError> {
-        // TODO improve validations for parameters and consensus state
-        ConsensusState::try_from(consensus_state).map(ConsensusState::into_box)
+        self.validate()?;
+        let consensus_state = ConsensusState::try_from(consensus_state)?;
+        consensus_state.validate()?;
+        Ok(ConsensusState::into_box(consensus_state))
     }
 
     fn check_header_and_update_state(

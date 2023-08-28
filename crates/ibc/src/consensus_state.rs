@@ -30,6 +30,24 @@ pub struct ConsensusState {
     pub next_sync_committee: Option<PublicKey>,
 }
 
+impl ConsensusState {
+    pub fn validate(&self) -> Result<(), Error> {
+        if self.slot == Default::default() {
+            Err(Error::UninitializedConsensusStateField("slot"))
+        } else if self.storage_root.as_bytes().is_empty() {
+            Err(Error::UninitializedConsensusStateField("storage_root"))
+        } else if self.timestamp == Timestamp::default() {
+            Err(Error::UninitializedConsensusStateField("timestamp"))
+        } else if self.current_sync_committee == PublicKey::default() {
+            Err(Error::UninitializedConsensusStateField(
+                "current_sync_committee",
+            ))
+        } else {
+            Ok(())
+        }
+    }
+}
+
 impl Default for ConsensusState {
     fn default() -> Self {
         Self {

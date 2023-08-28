@@ -61,6 +61,10 @@ pub enum Error {
         clock_drift: Duration,
         header_timestamp: Timestamp,
     },
+    /// uninitialized client state field: {0}
+    UninitializedClientStateField(&'static str),
+    /// uninitialized consensus state field: {0}
+    UninitializedConsensusStateField(&'static str),
     /// ethereum consensus error: `{0}`
     EthereumConsensusError(ethereum_consensus::errors::Error),
     /// decode error: `{0}`
