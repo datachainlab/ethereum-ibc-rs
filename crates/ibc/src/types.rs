@@ -205,7 +205,7 @@ pub(crate) fn convert_proto_sync_aggregate<const SYNC_COMMITTEE_SIZE: usize>(
 pub(crate) fn convert_consensus_update_to_proto<const SYNC_COMMITTEE_SIZE: usize>(
     consensus_update: ConsensusUpdateInfo<SYNC_COMMITTEE_SIZE>,
 ) -> ProtoLightClientUpdate {
-    let finalized_beacon_header_branch = consensus_update.finalized_beacon_header_branch().clone();
+    let finalized_beacon_header_branch = consensus_update.finalized_beacon_header_branch();
     let sync_aggregate = consensus_update.light_client_update.sync_aggregate.clone();
     let signature_slot = consensus_update.signature_slot();
     let light_client_update = consensus_update.light_client_update;
@@ -259,9 +259,8 @@ pub(crate) fn convert_proto_to_consensus_update<const SYNC_COMMITTEE_SIZE: usize
                 .as_ref()
                 .unwrap()
                 .pubkeys
-                .len()
-                == 0
-            || consensus_update.next_sync_committee_branch.len() == 0
+                .is_empty()
+            || consensus_update.next_sync_committee_branch.is_empty()
         {
             None
         } else {

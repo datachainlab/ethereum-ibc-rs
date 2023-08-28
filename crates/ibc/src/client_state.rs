@@ -127,11 +127,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize> ClientState<SYNC_COMMITTEE_SIZE> {
             .map_err(|e| ClientError::ClientSpecific {
                 description: format!(
                     "failed to verify membership: path={} root={:?} value={:?} proof={:?} error={}",
-                    path,
-                    root,
-                    value,
-                    proof,
-                    e.to_string()
+                    path, root, value, proof, e
                 ),
             })?;
         Ok(())
@@ -156,10 +152,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize> ClientState<SYNC_COMMITTEE_SIZE> {
             .map_err(|e| ClientError::ClientSpecific {
                 description: format!(
                     "failed to verify non-membership: path={} root={:?} proof={:?} error={}",
-                    path,
-                    root,
-                    proof,
-                    e.to_string()
+                    path, root, proof, e
                 ),
             })?;
         Ok(())
@@ -239,7 +232,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
     }
 
     fn frozen_height(&self) -> Option<Height> {
-        self.frozen_height.clone()
+        self.frozen_height
     }
 
     #[allow(unused_variables)]

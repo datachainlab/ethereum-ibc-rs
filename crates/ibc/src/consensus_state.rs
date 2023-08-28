@@ -76,7 +76,7 @@ impl TryFrom<RawConsensusState> for ConsensusState {
     type Error = Error;
 
     fn try_from(value: RawConsensusState) -> Result<Self, Self::Error> {
-        let next_sync_committee = if value.next_sync_committee.len() == 0 {
+        let next_sync_committee = if value.next_sync_committee.is_empty() {
             None
         } else {
             Some(PublicKey::try_from(value.next_sync_committee)?)
@@ -167,13 +167,13 @@ impl<const SYNC_COMMITTEE_SIZE: usize> TrustedConsensusState<SYNC_COMMITTEE_SIZE
                 })
             } else {
                 Err(Error::InvalidCurrentSyncCommitteeKeys(
-                    sync_committee.aggregate_pubkey.clone(),
+                    sync_committee.aggregate_pubkey,
                     consensus_state.current_sync_committee,
                 ))
             };
         }
 
-        return if let Some(next_sync_committee) = consensus_state.next_sync_committee.clone() {
+        if let Some(next_sync_committee) = consensus_state.next_sync_committee.clone() {
             if sync_committee.aggregate_pubkey == next_sync_committee {
                 Ok(Self {
                     state: consensus_state,
@@ -182,13 +182,13 @@ impl<const SYNC_COMMITTEE_SIZE: usize> TrustedConsensusState<SYNC_COMMITTEE_SIZE
                 })
             } else {
                 Err(Error::InvalidNextSyncCommitteeKeys(
-                    sync_committee.aggregate_pubkey.clone(),
+                    sync_committee.aggregate_pubkey,
                     next_sync_committee,
                 ))
             }
         } else {
             Err(Error::NoNextSyncCommitteeInConsensusState)
-        };
+        }
     }
 }
 
