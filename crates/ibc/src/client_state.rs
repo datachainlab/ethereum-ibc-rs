@@ -27,6 +27,7 @@ use ibc::core::ics24_host::identifier::{ChainId, ClientId};
 use ibc::core::ics24_host::path::ClientConsensusStatePath;
 use ibc::core::ics24_host::Path;
 use ibc::core::{ContextError, ValidationContext};
+use ibc::timestamp::Timestamp;
 use ibc::Height;
 use ibc_proto::google::protobuf::Any;
 use ibc_proto::protobuf::Protobuf;
@@ -223,6 +224,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
         &self,
         consensus_state: Any,
     ) -> Result<Box<dyn Ics02ConsensusState>, ClientError> {
+        // TODO improve validations for parameters and consensus state
         ConsensusState::try_from(consensus_state).map(ConsensusState::into_box)
     }
 
@@ -267,6 +269,18 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
                 &execution_update,
             )
             .map_err(Error::VerificationError)?;
+
+        // check if the current timestamp is within the trusting period
+        validate_within_trusting_period(
+            ctx.host_timestamp()
+                .map_err(|e| ClientError::ClientSpecific {
+                    description: e.to_string(),
+                })?,
+            self.trusting_period,
+            self.max_clock_drift,
+            trusted_consensus_state.state.timestamp,
+            timestamp,
+        )?;
 
         let (new_client_state, new_consensus_state) = apply_updates(
             &cc,
@@ -530,6 +544,32 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
             receipt_path.clone(),
         )
     }
+}
+
+fn validate_within_trusting_period(
+    current_timestamp: Timestamp,
+    trusting_period: Duration,
+    clock_drift: Duration,
+    trusted_consensus_state_timestamp: Timestamp,
+    untrusted_header_timestamp: Timestamp,
+) -> Result<(), Error> {
+    let trusting_period_end = (trusted_consensus_state_timestamp + trusting_period)?;
+    let drifted_current_timestamp = (current_timestamp + clock_drift)?;
+
+    if !trusting_period_end.after(&current_timestamp) {
+        return Err(Error::OutOfTrustingPeriod {
+            current_timestamp,
+            trusting_period_end,
+        });
+    }
+    if !drifted_current_timestamp.after(&untrusted_header_timestamp) {
+        return Err(Error::HeaderFromFuture {
+            current_timestamp,
+            clock_drift,
+            header_timestamp: untrusted_header_timestamp,
+        });
+    }
+    Ok(())
 }
 
 impl<const SYNC_COMMITTEE_SIZE: usize> Protobuf<RawClientState>

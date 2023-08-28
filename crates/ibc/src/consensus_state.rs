@@ -23,7 +23,7 @@ pub struct ConsensusState {
     /// the storage root of the IBC contract
     pub storage_root: CommitmentRoot,
     /// timestamp from execution payload
-    pub timestamp: u64,
+    pub timestamp: Timestamp,
     /// aggregate public key of current sync committee
     pub current_sync_committee: PublicKey,
     /// aggregate public key of next sync committee
@@ -48,7 +48,7 @@ impl Ics02ConsensusState for ConsensusState {
     }
 
     fn timestamp(&self) -> Timestamp {
-        Timestamp::from_nanoseconds(self.timestamp * 1_000_000_000).unwrap()
+        self.timestamp
     }
 }
 
@@ -66,7 +66,7 @@ impl TryFrom<RawConsensusState> for ConsensusState {
         Ok(Self {
             slot: value.slot.into(),
             storage_root: value.storage_root.into(),
-            timestamp: value.timestamp,
+            timestamp: Timestamp::from_nanoseconds(value.timestamp)?,
             current_sync_committee: PublicKey::try_from(value.current_sync_committee)?,
             next_sync_committee,
         })
@@ -82,7 +82,7 @@ impl From<ConsensusState> for RawConsensusState {
         Self {
             slot: value.slot.into(),
             storage_root: value.storage_root.into_vec(),
-            timestamp: value.timestamp,
+            timestamp: value.timestamp.nanoseconds(),
             current_sync_committee: value.current_sync_committee.to_vec(),
             next_sync_committee,
         }
@@ -128,9 +128,9 @@ impl From<ConsensusState> for IBCAny {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TrustedConsensusState<const SYNC_COMMITTEE_SIZE: usize> {
-    state: ConsensusState,
-    current_sync_committee: Option<SyncCommittee<SYNC_COMMITTEE_SIZE>>,
-    next_sync_committee: Option<SyncCommittee<SYNC_COMMITTEE_SIZE>>,
+    pub(crate) state: ConsensusState,
+    pub(crate) current_sync_committee: Option<SyncCommittee<SYNC_COMMITTEE_SIZE>>,
+    pub(crate) next_sync_committee: Option<SyncCommittee<SYNC_COMMITTEE_SIZE>>,
 }
 
 impl<const SYNC_COMMITTEE_SIZE: usize> TrustedConsensusState<SYNC_COMMITTEE_SIZE> {
