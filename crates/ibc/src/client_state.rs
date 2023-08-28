@@ -27,6 +27,7 @@ use ibc::core::ics24_host::identifier::{ChainId, ClientId};
 use ibc::core::ics24_host::path::ClientConsensusStatePath;
 use ibc::core::ics24_host::Path;
 use ibc::core::{ContextError, ValidationContext};
+use ibc::timestamp::Timestamp;
 use ibc::Height;
 use ibc_proto::google::protobuf::Any;
 use ibc_proto::protobuf::Protobuf;
@@ -56,6 +57,7 @@ pub struct ClientState<const SYNC_COMMITTEE_SIZE: usize> {
     /// Light Client parameters
     pub trust_level: Fraction,
     pub trusting_period: Duration,
+    pub max_clock_drift: Duration,
 
     /// State
     pub latest_slot: Slot,
@@ -190,6 +192,48 @@ impl<const SYNC_COMMITTEE_SIZE: usize> ClientState<SYNC_COMMITTEE_SIZE> {
         // }
         Ok(())
     }
+
+    fn validate(&self) -> Result<(), Error> {
+        if self.genesis_validators_root == Root::default() {
+            Err(Error::UninitializedClientStateField(
+                "genesis_validators_root",
+            ))
+        } else if self.min_sync_committee_participants == U64::default() {
+            Err(Error::UninitializedClientStateField(
+                "min_sync_committee_participants",
+            ))
+        } else if self.genesis_time == U64::default() {
+            Err(Error::UninitializedClientStateField("genesis_time"))
+        } else if self.fork_parameters == ForkParameters::default() {
+            Err(Error::UninitializedClientStateField("fork_parameters"))
+        } else if self.seconds_per_slot == U64::default() {
+            Err(Error::UninitializedClientStateField("seconds_per_slot"))
+        } else if self.slots_per_epoch == Slot::default() {
+            Err(Error::UninitializedClientStateField("slots_per_epoch"))
+        } else if self.epochs_per_sync_committee_period == U64::default() {
+            Err(Error::UninitializedClientStateField(
+                "epochs_per_sync_committee_period",
+            ))
+        } else if self.ibc_address == Address::default() {
+            Err(Error::UninitializedClientStateField("ibc_address"))
+        } else if self.ibc_commitments_slot == H256::default() {
+            Err(Error::UninitializedClientStateField("ibc_commitments_slot"))
+        } else if self.trust_level == Fraction::default() {
+            Err(Error::UninitializedClientStateField("trust_level"))
+        } else if self.trusting_period == Duration::default() {
+            Err(Error::UninitializedClientStateField("trusting_period"))
+        } else if self.max_clock_drift == Duration::default() {
+            Err(Error::UninitializedClientStateField("max_clock_drift"))
+        } else if self.latest_slot == Slot::default() {
+            Err(Error::UninitializedClientStateField("latest_slot"))
+        } else if self.latest_execution_block_number == U64::default() {
+            Err(Error::UninitializedClientStateField(
+                "latest_execution_block_number",
+            ))
+        } else {
+            Ok(())
+        }
+    }
 }
 
 impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMMITTEE_SIZE> {
@@ -222,7 +266,10 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
         &self,
         consensus_state: Any,
     ) -> Result<Box<dyn Ics02ConsensusState>, ClientError> {
-        ConsensusState::try_from(consensus_state).map(ConsensusState::into_box)
+        self.validate()?;
+        let consensus_state = ConsensusState::try_from(consensus_state)?;
+        consensus_state.validate()?;
+        Ok(ConsensusState::into_box(consensus_state))
     }
 
     fn check_header_and_update_state(
@@ -266,6 +313,18 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
                 &execution_update,
             )
             .map_err(Error::VerificationError)?;
+
+        // check if the current timestamp is within the trusting period
+        validate_within_trusting_period(
+            ctx.host_timestamp()
+                .map_err(|e| ClientError::ClientSpecific {
+                    description: e.to_string(),
+                })?,
+            self.trusting_period,
+            self.max_clock_drift,
+            timestamp,
+            trusted_consensus_state.state.timestamp,
+        )?;
 
         let (new_client_state, new_consensus_state) = apply_updates(
             &cc,
@@ -531,6 +590,32 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
     }
 }
 
+fn validate_within_trusting_period(
+    current_timestamp: Timestamp,
+    trusting_period: Duration,
+    clock_drift: Duration,
+    untrusted_header_timestamp: Timestamp,
+    trusted_consensus_state_timestamp: Timestamp,
+) -> Result<(), Error> {
+    let trusting_period_end = (trusted_consensus_state_timestamp + trusting_period)?;
+    let drifted_current_timestamp = (current_timestamp + clock_drift)?;
+
+    if !trusting_period_end.after(&current_timestamp) {
+        return Err(Error::OutOfTrustingPeriod {
+            current_timestamp,
+            trusting_period_end,
+        });
+    }
+    if !drifted_current_timestamp.after(&untrusted_header_timestamp) {
+        return Err(Error::HeaderFromFuture {
+            current_timestamp,
+            clock_drift,
+            header_timestamp: untrusted_header_timestamp,
+        });
+    }
+    Ok(())
+}
+
 impl<const SYNC_COMMITTEE_SIZE: usize> Protobuf<RawClientState>
     for ClientState<SYNC_COMMITTEE_SIZE>
 {
@@ -571,7 +656,16 @@ impl<const SYNC_COMMITTEE_SIZE: usize> TryFrom<RawClientState>
             ibc_address: value.ibc_address.as_slice().try_into()?,
             ibc_commitments_slot: H256::from_slice(&value.ibc_commitments_slot),
             trust_level: Fraction::new(trust_level.numerator, trust_level.denominator),
-            trusting_period: Duration::from_secs(value.trusting_period),
+            trusting_period: value
+                .trusting_period
+                .ok_or(Error::MissingTrustingPeriod)?
+                .try_into()
+                .map_err(|_| Error::MissingTrustingPeriod)?,
+            max_clock_drift: value
+                .max_clock_drift
+                .ok_or(Error::NegativeMaxClockDrift)?
+                .try_into()
+                .map_err(|_| Error::NegativeMaxClockDrift)?,
             latest_slot: value.latest_slot.into(),
             latest_execution_block_number: value.latest_execution_block_number.into(),
             frozen_height: value
@@ -624,7 +718,8 @@ impl<const SYNC_COMMITTEE_SIZE: usize> From<ClientState<SYNC_COMMITTEE_SIZE>> fo
                 numerator: value.trust_level.numerator,
                 denominator: value.trust_level.denominator,
             }),
-            trusting_period: value.trusting_period.as_secs(),
+            trusting_period: Some(value.trusting_period.into()),
+            max_clock_drift: Some(value.max_clock_drift.into()),
             latest_slot: value.latest_slot.into(),
             latest_execution_block_number: value.latest_execution_block_number.into(),
             frozen_height: value.frozen_height.map(|h| ProtoHeight {
@@ -711,5 +806,161 @@ fn maybe_consensus_state(
                 description: e.to_string(),
             }),
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use time::{macros::datetime, OffsetDateTime};
+
+    #[test]
+    fn test_trusting_period_validation() {
+        {
+            let current_timestamp = datetime!(2023-08-20 0:00 UTC);
+            let untrusted_header_timestamp = datetime!(2023-08-20 0:00 UTC);
+            let trusted_state_timestamp = datetime!(2023-08-20 0:00 UTC);
+            validate_and_assert_no_error(
+                current_timestamp,
+                1,
+                1,
+                untrusted_header_timestamp,
+                trusted_state_timestamp,
+            );
+        }
+
+        // trusting_period
+        {
+            let current_timestamp = datetime!(2023-08-20 0:00 UTC);
+            let untrusted_header_timestamp = current_timestamp - Duration::new(0, 1);
+            let trusted_state_timestamp = untrusted_header_timestamp - Duration::new(0, 1);
+            validate_and_assert_trusting_period_error(
+                current_timestamp,
+                1,
+                0,
+                untrusted_header_timestamp,
+                trusted_state_timestamp,
+            );
+            validate_and_assert_trusting_period_error(
+                current_timestamp,
+                2,
+                0,
+                untrusted_header_timestamp,
+                trusted_state_timestamp,
+            );
+            validate_and_assert_no_error(
+                current_timestamp,
+                3,
+                0,
+                untrusted_header_timestamp,
+                trusted_state_timestamp,
+            );
+        }
+
+        // clock drift
+        {
+            let current_timestamp = datetime!(2023-08-20 0:00 UTC);
+            let untrusted_header_timestamp = current_timestamp + Duration::new(0, 1);
+            let trusted_state_timestamp = current_timestamp;
+            validate_and_assert_clock_drift_error(
+                current_timestamp,
+                1,
+                0,
+                untrusted_header_timestamp,
+                trusted_state_timestamp,
+            );
+            validate_and_assert_clock_drift_error(
+                current_timestamp,
+                1,
+                1,
+                untrusted_header_timestamp,
+                trusted_state_timestamp,
+            );
+            validate_and_assert_no_error(
+                current_timestamp,
+                1,
+                2,
+                untrusted_header_timestamp,
+                trusted_state_timestamp,
+            );
+        }
+    }
+
+    fn validate_and_assert_no_error(
+        current_timestamp: OffsetDateTime,
+        trusting_period: u64,
+        clock_drift: u64,
+        untrusted_header_timestamp: OffsetDateTime,
+        trusted_state_timestamp: OffsetDateTime,
+    ) {
+        let result = validate_within_trusting_period(
+            Timestamp::from_nanoseconds(current_timestamp.unix_timestamp_nanos() as u64).unwrap(),
+            Duration::from_nanos(trusting_period),
+            Duration::from_nanos(clock_drift),
+            Timestamp::from_nanoseconds(untrusted_header_timestamp.unix_timestamp_nanos() as u64)
+                .unwrap(),
+            Timestamp::from_nanoseconds(trusted_state_timestamp.unix_timestamp_nanos() as u64)
+                .unwrap(),
+        );
+        assert!(result.is_ok());
+    }
+
+    fn validate_and_assert_trusting_period_error(
+        current_timestamp: OffsetDateTime,
+        trusting_period: u64,
+        clock_drift: u64,
+        untrusted_header_timestamp: OffsetDateTime,
+        trusted_state_timestamp: OffsetDateTime,
+    ) {
+        let result = validate_within_trusting_period(
+            Timestamp::from_nanoseconds(current_timestamp.unix_timestamp_nanos() as u64).unwrap(),
+            Duration::from_nanos(trusting_period),
+            Duration::from_nanos(clock_drift),
+            Timestamp::from_nanoseconds(untrusted_header_timestamp.unix_timestamp_nanos() as u64)
+                .unwrap(),
+            Timestamp::from_nanoseconds(trusted_state_timestamp.unix_timestamp_nanos() as u64)
+                .unwrap(),
+        );
+        if let Err(e) = result {
+            match e {
+                Error::OutOfTrustingPeriod {
+                    current_timestamp: _,
+                    trusting_period_end: _,
+                } => {}
+                _ => panic!("unexpected error: {e}"),
+            }
+        } else {
+            panic!("expected error");
+        }
+    }
+
+    fn validate_and_assert_clock_drift_error(
+        current_timestamp: OffsetDateTime,
+        trusting_period: u64,
+        clock_drift: u64,
+        untrusted_header_timestamp: OffsetDateTime,
+        trusted_state_timestamp: OffsetDateTime,
+    ) {
+        let result = validate_within_trusting_period(
+            Timestamp::from_nanoseconds(current_timestamp.unix_timestamp_nanos() as u64).unwrap(),
+            Duration::from_nanos(trusting_period),
+            Duration::from_nanos(clock_drift),
+            Timestamp::from_nanoseconds(untrusted_header_timestamp.unix_timestamp_nanos() as u64)
+                .unwrap(),
+            Timestamp::from_nanoseconds(trusted_state_timestamp.unix_timestamp_nanos() as u64)
+                .unwrap(),
+        );
+        if let Err(e) = result {
+            match e {
+                Error::HeaderFromFuture {
+                    current_timestamp: _,
+                    clock_drift: _,
+                    header_timestamp: _,
+                } => {}
+                _ => panic!("unexpected error: {e}"),
+            }
+        } else {
+            panic!("expected error");
+        }
     }
 }

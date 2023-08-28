@@ -1,4 +1,5 @@
 use crate::internal_prelude::*;
+use core::time::Duration;
 use displaydoc::Display;
 use ethereum_consensus::{
     beacon::{BeaconBlockHeader, Slot},
@@ -8,6 +9,7 @@ use ethereum_consensus::{
 };
 use ibc::{
     core::{ics02_client::error::ClientError, ics24_host::error::ValidationError, ContextError},
+    timestamp::{ParseTimestampError, Timestamp, TimestampOverflowError},
     Height,
 };
 
@@ -44,6 +46,25 @@ pub enum Error {
     },
     /// unexpected timestamp: expected={0} got={1}
     UnexpectedTimestamp(u64, u64),
+    /// missing trusting period
+    MissingTrustingPeriod,
+    /// negative max clock drift
+    NegativeMaxClockDrift,
+    /// out of trusting period: current_timestamp={current_timestamp} trusting_period_end={trusting_period_end}
+    OutOfTrustingPeriod {
+        current_timestamp: Timestamp,
+        trusting_period_end: Timestamp,
+    },
+    /// header is coming from future: current_timestamp={current_timestamp} clock_drift={clock_drift:?} header_timestamp={header_timestamp}
+    HeaderFromFuture {
+        current_timestamp: Timestamp,
+        clock_drift: Duration,
+        header_timestamp: Timestamp,
+    },
+    /// uninitialized client state field: {0}
+    UninitializedClientStateField(&'static str),
+    /// uninitialized consensus state field: {0}
+    UninitializedConsensusStateField(&'static str),
     /// ethereum consensus error: `{0}`
     EthereumConsensusError(ethereum_consensus::errors::Error),
     /// decode error: `{0}`
@@ -54,6 +75,26 @@ pub enum Error {
     ICS02(ClientError),
     /// ics24 error: `{0}`
     ICS24(ValidationError),
+    /// context error
+    ContextError(ContextError),
+    /// timestamp overflow error: `{0}`
+    TimestampOverflowError(TimestampOverflowError),
+    /// parse timestamp error: `{0}`
+    ParseTimestampError(ParseTimestampError),
+}
+
+impl From<Error> for ClientError {
+    fn from(value: Error) -> Self {
+        ClientError::ClientSpecific {
+            description: format!("{}", value),
+        }
+    }
+}
+
+impl From<Error> for ContextError {
+    fn from(value: Error) -> Self {
+        ContextError::ClientError(value.into())
+    }
 }
 
 impl From<ethereum_light_client_verifier::errors::Error> for Error {
@@ -74,20 +115,6 @@ impl From<ethereum_consensus::errors::Error> for Error {
     }
 }
 
-impl From<Error> for ClientError {
-    fn from(value: Error) -> Self {
-        ClientError::ClientSpecific {
-            description: format!("{}", value),
-        }
-    }
-}
-
-impl From<Error> for ContextError {
-    fn from(value: Error) -> Self {
-        ContextError::ClientError(value.into())
-    }
-}
-
 impl From<ClientError> for Error {
     fn from(value: ClientError) -> Self {
         Self::ICS02(value)
@@ -103,5 +130,23 @@ impl From<ValidationError> for Error {
 impl From<ssz_rs::DeserializeError> for Error {
     fn from(value: ssz_rs::DeserializeError) -> Self {
         Self::SSZDeserialize(value)
+    }
+}
+
+impl From<ContextError> for Error {
+    fn from(value: ContextError) -> Self {
+        Self::ContextError(value)
+    }
+}
+
+impl From<TimestampOverflowError> for Error {
+    fn from(value: TimestampOverflowError) -> Self {
+        Self::TimestampOverflowError(value)
+    }
+}
+
+impl From<ParseTimestampError> for Error {
+    fn from(value: ParseTimestampError) -> Self {
+        Self::ParseTimestampError(value)
     }
 }

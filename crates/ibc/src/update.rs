@@ -6,6 +6,7 @@ use crate::{
     types::AccountUpdateInfo,
 };
 use ethereum_consensus::{
+    beacon::Slot,
     compute::{compute_sync_committee_period_at_slot, compute_timestamp_at_slot},
     context::ChainContext,
     sync_protocol::EXECUTION_PAYLOAD_DEPTH,
@@ -76,11 +77,10 @@ pub fn apply_updates<const SYNC_COMMITTEE_SIZE: usize, C: ChainContext>(
         ConsensusState {
             slot: consensus_update.light_client_update.finalized_header.0.slot,
             storage_root: account_update.account_storage_root.0.to_vec().into(),
-            timestamp: compute_timestamp_at_slot(
+            timestamp: wrap_compute_timestamp_at_slot(
                 ctx,
                 consensus_update.light_client_update.finalized_header.0.slot,
-            )
-            .into(),
+            )?,
             current_sync_committee: trusted_consensus_state.current_sync_committee_aggregate_key(),
             next_sync_committee: consensus_update
                 .light_client_update
@@ -92,11 +92,10 @@ pub fn apply_updates<const SYNC_COMMITTEE_SIZE: usize, C: ChainContext>(
         ConsensusState {
             slot: consensus_update.light_client_update.finalized_header.0.slot,
             storage_root: account_update.account_storage_root.0.to_vec().into(),
-            timestamp: compute_timestamp_at_slot(
+            timestamp: wrap_compute_timestamp_at_slot(
                 ctx,
                 consensus_update.light_client_update.finalized_header.0.slot,
-            )
-            .into(),
+            )?,
             current_sync_committee: trusted_consensus_state
                 .next_sync_committee()
                 .as_ref()
@@ -115,4 +114,14 @@ pub fn apply_updates<const SYNC_COMMITTEE_SIZE: usize, C: ChainContext>(
     };
 
     Ok((new_client_state, new_consensus_state))
+}
+
+fn wrap_compute_timestamp_at_slot<C: ChainContext>(
+    ctx: &C,
+    slot: Slot,
+) -> Result<Timestamp, Error> {
+    // NOTE: The return value of `compute_timestamp_at_slot`'s unit is seconds,
+    // so we need to convert it to nanoseconds.
+    let timestamp = compute_timestamp_at_slot(ctx, slot);
+    Ok(Timestamp::from_nanoseconds(timestamp.0 * 1_000_000_000)?)
 }
