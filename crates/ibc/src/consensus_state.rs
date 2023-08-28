@@ -1,7 +1,10 @@
 use crate::errors::Error;
 use crate::internal_prelude::*;
 use ethereum_consensus::{beacon::Slot, bls::PublicKey, sync_protocol::SyncCommittee};
-use ethereum_ibc_proto::ibc::lightclients::ethereum::v1::ConsensusState as RawConsensusState;
+use ethereum_ibc_proto::{
+    google::protobuf::Timestamp as ProtoTimestamp,
+    ibc::lightclients::ethereum::v1::ConsensusState as RawConsensusState,
+};
 use ethereum_light_client_verifier::state::SyncCommitteeView;
 use ibc::{
     core::{
@@ -72,6 +75,29 @@ impl Ics02ConsensusState for ConsensusState {
 
 impl Protobuf<RawConsensusState> for ConsensusState {}
 
+fn proto_timestamp_to_ibc_timestamp(timestamp: ProtoTimestamp) -> Result<Timestamp, Error> {
+    use ibc::timestamp::TimestampOverflowError::TimestampOverflow;
+    if timestamp.seconds < 0 || timestamp.nanos < 0 {
+        return Err(Error::InvalidRawConsensusState {
+            reason: "timestamp seconds or nanos is negative".to_string(),
+        });
+    }
+    let nanos = (timestamp.seconds as u64)
+        .checked_mul(1_000_000_000)
+        .ok_or_else(|| Error::TimestampOverflowError(TimestampOverflow))?
+        .checked_add(timestamp.nanos as u64)
+        .ok_or_else(|| Error::TimestampOverflowError(TimestampOverflow))?;
+    Ok(Timestamp::from_nanoseconds(nanos)?)
+}
+
+fn ibc_timestamp_to_proto_timestamp(timestamp: Timestamp) -> ProtoTimestamp {
+    let nanos = timestamp.nanoseconds();
+    ProtoTimestamp {
+        seconds: (nanos / 1_000_000_000) as i64,
+        nanos: (nanos % 1_000_000_000) as i32,
+    }
+}
+
 impl TryFrom<RawConsensusState> for ConsensusState {
     type Error = Error;
 
@@ -84,7 +110,11 @@ impl TryFrom<RawConsensusState> for ConsensusState {
         Ok(Self {
             slot: value.slot.into(),
             storage_root: value.storage_root.into(),
-            timestamp: Timestamp::from_nanoseconds(value.timestamp)?,
+            timestamp: proto_timestamp_to_ibc_timestamp(value.timestamp.ok_or_else(|| {
+                Self::Error::InvalidRawConsensusState {
+                    reason: "timestamp is none".to_string(),
+                }
+            })?)?,
             current_sync_committee: PublicKey::try_from(value.current_sync_committee)?,
             next_sync_committee,
         })
@@ -100,7 +130,7 @@ impl From<ConsensusState> for RawConsensusState {
         Self {
             slot: value.slot.into(),
             storage_root: value.storage_root.into_vec(),
-            timestamp: value.timestamp.nanoseconds(),
+            timestamp: Some(ibc_timestamp_to_proto_timestamp(value.timestamp)),
             current_sync_committee: value.current_sync_committee.to_vec(),
             next_sync_committee,
         }

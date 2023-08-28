@@ -15,6 +15,8 @@ use ibc::{
 
 #[derive(Debug, Display)]
 pub enum Error {
+    /// invalid raw consensus state: {reason}
+    InvalidRawConsensusState { reason: String },
     /// verification error: {0}
     VerificationError(ethereum_light_client_verifier::errors::Error),
     /// consensus state doesn't have next sync committee
