@@ -18,6 +18,7 @@ use prost::Message;
 
 pub const ETHEREUM_HEADER_TYPE_URL: &str = "/ibc.lightclients.ethereum.v1.Header";
 
+#[allow(clippy::large_enum_variant)]
 #[derive(serde::Serialize, serde::Deserialize)]
 pub enum ClientMessage<const SYNC_COMMITTEE_SIZE: usize> {
     Header(Header<SYNC_COMMITTEE_SIZE>),

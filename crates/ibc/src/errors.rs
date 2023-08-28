@@ -65,6 +65,11 @@ pub enum Error {
     UninitializedClientStateField(&'static str),
     /// uninitialized consensus state field: {0}
     UninitializedConsensusStateField(&'static str),
+    /// client frozen: frozen_height={frozen_height} target_height={target_height}
+    ClientFrozen {
+        frozen_height: Height,
+        target_height: Height,
+    },
     /// ethereum consensus error: `{0}`
     EthereumConsensusError(ethereum_consensus::errors::Error),
     /// decode error: `{0}`
