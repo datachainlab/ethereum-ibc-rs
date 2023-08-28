@@ -18,3 +18,6 @@ ssz-rs = { git = "https://github.com/bluele/ssz_rs", branch = "serde-no-std", de
 ethereum-ibc-proto = { path = "../../proto", default-features = false }
 ethereum-consensus = { git = "https://github.com/datachainlab/ethereum-light-client-rs", rev = "aac304f27372e8a0fb950522ee9cd6f41e43f56f", default-features = false }
 ethereum-light-client-verifier = { git = "https://github.com/datachainlab/ethereum-light-client-rs", rev = "aac304f27372e8a0fb950522ee9cd6f41e43f56f", default-features = false }
+
+[dev-dependencies]
+time = { version = "0.3", default-features = false, features = ["macros", "parsing"] }
