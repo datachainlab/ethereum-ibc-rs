@@ -247,3 +247,34 @@ impl<const SYNC_COMMITTEE_SIZE: usize> SyncCommitteeView<SYNC_COMMITTEE_SIZE>
         self.next_sync_committee.as_ref()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use time::macros::datetime;
+
+    #[test]
+    fn test_timestamp() {
+        {
+            // nanos is non-zero
+            let it1 = Timestamp::from_nanoseconds(
+                datetime!(2023-08-20 0:00 UTC).unix_timestamp_nanos() as u64 - 1,
+            )
+            .unwrap();
+            let pt1 = ibc_timestamp_to_proto_timestamp(it1);
+            let it2 = proto_timestamp_to_ibc_timestamp(pt1).unwrap();
+            assert_eq!(it1, it2);
+        }
+
+        {
+            // nanos is zero
+            let it1 = Timestamp::from_nanoseconds(
+                datetime!(2023-08-20 0:00 UTC).unix_timestamp_nanos() as u64,
+            )
+            .unwrap();
+            let pt1 = ibc_timestamp_to_proto_timestamp(it1);
+            let it2 = proto_timestamp_to_ibc_timestamp(pt1).unwrap();
+            assert_eq!(it1, it2);
+        }
+    }
+}
