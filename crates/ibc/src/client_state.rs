@@ -181,16 +181,13 @@ impl<const SYNC_COMMITTEE_SIZE: usize> ClientState<SYNC_COMMITTEE_SIZE> {
                 target_height: height,
             });
         }
-
-        // TODO implement this
-        // match self.frozen_height {
-        //     Some(frozen_height) if frozen_height <= height => Err(Error::ClientFrozen {
-        //         frozen_height,
-        //         target_height: height,
-        //     }),
-        //     _ => Ok(()),
-        // }
-        Ok(())
+        match self.frozen_height {
+            Some(frozen_height) if frozen_height <= height => Err(Error::ClientFrozen {
+                frozen_height,
+                target_height: height,
+            }),
+            _ => Ok(()),
+        }
     }
 
     fn validate(&self) -> Result<(), Error> {
