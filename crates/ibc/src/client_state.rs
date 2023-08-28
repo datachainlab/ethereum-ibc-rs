@@ -114,11 +114,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize> ClientState<SYNC_COMMITTEE_SIZE> {
         path: impl Into<Path>,
         value: Vec<u8>,
     ) -> Result<(), ClientError> {
-        let proof = decode_eip1184_rlp_proof(proof.clone().try_into().map_err(|e| {
-            ClientError::Other {
-                description: format!("{}", e),
-            }
-        })?)?;
+        let proof = decode_eip1184_rlp_proof(proof.clone().into())?;
         let path = path.into();
         let key = calculate_ibc_commitment_storage_key(&self.ibc_commitments_slot, path.clone());
         self.execution_verifier
@@ -148,11 +144,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize> ClientState<SYNC_COMMITTEE_SIZE> {
         root: &ibc::core::ics23_commitment::commitment::CommitmentRoot,
         path: impl Into<Path>,
     ) -> Result<(), ibc::core::ics02_client::error::ClientError> {
-        let proof = decode_eip1184_rlp_proof(proof.clone().try_into().map_err(|e| {
-            ClientError::Other {
-                description: format!("{}", e),
-            }
-        })?)?;
+        let proof = decode_eip1184_rlp_proof(proof.clone().into())?;
         let path = path.into();
         let key = calculate_ibc_commitment_storage_key(&self.ibc_commitments_slot, path.clone());
         self.execution_verifier
