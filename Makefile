@@ -3,7 +3,7 @@
 .PHONY: lint-tools
 lint-tools:
 	rustup component add rustfmt clippy
-	cargo +nightly install cargo-machete
+	cargo install cargo-machete
 
 .PHONY: fmt
 fmt:
