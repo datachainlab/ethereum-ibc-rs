@@ -45,8 +45,10 @@ pub struct ConsensusState {
     pub slot: u64,
     #[prost(bytes = "vec", tag = "2")]
     pub storage_root: ::prost::alloc::vec::Vec<u8>,
-    #[prost(uint64, tag = "3")]
-    pub timestamp: u64,
+    #[prost(message, optional, tag = "3")]
+    pub timestamp: ::core::option::Option<
+        super::super::super::super::google::protobuf::Timestamp,
+    >,
     #[prost(bytes = "vec", tag = "4")]
     pub current_sync_committee: ::prost::alloc::vec::Vec<u8>,
     #[prost(bytes = "vec", tag = "5")]
@@ -63,6 +65,7 @@ pub struct Header {
     pub execution_update: ::core::option::Option<ExecutionUpdate>,
     #[prost(message, optional, tag = "4")]
     pub account_update: ::core::option::Option<AccountUpdate>,
+    /// seconds from unix epoch
     #[prost(uint64, tag = "5")]
     pub timestamp: u64,
 }

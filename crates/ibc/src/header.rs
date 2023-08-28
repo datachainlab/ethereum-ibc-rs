@@ -55,10 +55,6 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Protobuf<RawHeader> for Header<SYNC_COMMI
 impl<const SYNC_COMMITTEE_SIZE: usize> TryFrom<RawHeader> for Header<SYNC_COMMITTEE_SIZE> {
     type Error = Error;
     fn try_from(value: RawHeader) -> Result<Self, Self::Error> {
-        fn timestamp_from_seconds(secs: u64) -> Timestamp {
-            Timestamp::from_nanoseconds(secs * 1_000_000_000).unwrap()
-        }
-
         let trusted_sync_committee = value.trusted_sync_committee.unwrap();
         let consensus_update = value.consensus_update.unwrap();
         let execution_update = value.execution_update.unwrap();
@@ -69,7 +65,13 @@ impl<const SYNC_COMMITTEE_SIZE: usize> TryFrom<RawHeader> for Header<SYNC_COMMIT
             consensus_update: convert_proto_to_consensus_update(consensus_update)?,
             execution_update: convert_proto_to_execution_update(execution_update),
             account_update: account_update.try_into()?,
-            timestamp: timestamp_from_seconds(value.timestamp),
+            timestamp: Timestamp::from_nanoseconds(
+                value.timestamp.checked_mul(1_000_000_000).ok_or_else(|| {
+                    Error::TimestampOverflowError(
+                        ibc::timestamp::TimestampOverflowError::TimestampOverflow,
+                    )
+                })?,
+            )?,
         })
     }
 }

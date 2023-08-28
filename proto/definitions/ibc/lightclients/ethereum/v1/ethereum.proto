@@ -3,6 +3,7 @@ package ibc.lightclients.ethereum.v1;
 
 option go_package = "github.com/datachainlab/ethereum-lcp/go/light-clients/ethereum/types";
 import "ibc/core/client/v1/client.proto";
+import "google/protobuf/timestamp.proto";
 import "google/protobuf/duration.proto";
 
 message ClientState {
@@ -29,7 +30,7 @@ message ClientState {
 message ConsensusState {
   uint64 slot = 1;
   bytes storage_root = 2;
-  uint64 timestamp = 3;
+  google.protobuf.Timestamp timestamp = 3;
   bytes current_sync_committee = 4;
   bytes next_sync_committee = 5;
 }
@@ -39,6 +40,7 @@ message Header {
   LightClientUpdate consensus_update = 2;
   ExecutionUpdate execution_update = 3;
   AccountUpdate account_update = 4;
+  // seconds from unix epoch
   uint64 timestamp = 5;
 }
 
