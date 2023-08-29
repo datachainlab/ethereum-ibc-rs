@@ -198,8 +198,6 @@ impl<const SYNC_COMMITTEE_SIZE: usize> ClientState<SYNC_COMMITTEE_SIZE> {
             ))
         } else if self.ibc_address == Address::default() {
             Err(Error::UninitializedClientStateField("ibc_address"))
-        } else if self.ibc_commitments_slot == H256::default() {
-            Err(Error::UninitializedClientStateField("ibc_commitments_slot"))
         } else if self.trust_level == Fraction::default() {
             Err(Error::UninitializedClientStateField("trust_level"))
         } else if self.trusting_period == Duration::default() {
@@ -213,6 +211,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize> ClientState<SYNC_COMMITTEE_SIZE> {
                 "latest_execution_block_number",
             ))
         } else {
+            self.fork_parameters.validate()?;
             Ok(())
         }
     }
@@ -625,7 +624,6 @@ impl<const SYNC_COMMITTEE_SIZE: usize> TryFrom<RawClientState>
                 .map(|f| ForkParameter::new(bytes_to_version(f.version), f.epoch.into()))
                 .collect(),
         );
-        fork_parameters.validate()?;
         let trust_level = value.trust_level.unwrap();
         Ok(Self {
             genesis_validators_root: H256::from_slice(&value.genesis_validators_root),
