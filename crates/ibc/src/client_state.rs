@@ -202,8 +202,6 @@ impl<const SYNC_COMMITTEE_SIZE: usize> ClientState<SYNC_COMMITTEE_SIZE> {
             Err(Error::UninitializedClientStateField("trust_level"))
         } else if self.trusting_period == Duration::default() {
             Err(Error::UninitializedClientStateField("trusting_period"))
-        } else if self.max_clock_drift == Duration::default() {
-            Err(Error::UninitializedClientStateField("max_clock_drift"))
         } else if self.latest_slot == Slot::default() {
             Err(Error::UninitializedClientStateField("latest_slot"))
         } else if self.latest_execution_block_number == U64::default() {
