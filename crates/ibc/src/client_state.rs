@@ -9,7 +9,6 @@ use core::time::Duration;
 use ethereum_consensus::beacon::{Epoch, Root, Slot, Version};
 use ethereum_consensus::context::ChainContext;
 use ethereum_consensus::fork::{ForkParameter, ForkParameters};
-use ethereum_consensus::preset;
 use ethereum_consensus::types::{Address, H256, U64};
 use ethereum_ibc_proto::ibc::lightclients::ethereum::v1::{ClientState as RawClientState, Fork};
 use ethereum_light_client_verifier::consensus::{
@@ -36,11 +35,9 @@ use serde::{Deserialize, Serialize};
 
 pub const ETHEREUM_CLIENT_STATE_TYPE_URL: &str = "/ibc.lightclients.ethereum.v1.ClientState";
 
-pub type MainnetClientState = ClientState<{ preset::mainnet::PRESET.SYNC_COMMITTEE_SIZE }>;
-pub type MinimalClientState = ClientState<{ preset::minimal::PRESET.SYNC_COMMITTEE_SIZE }>;
-
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ClientState<const SYNC_COMMITTEE_SIZE: usize> {
+pub struct ClientState<const SYNC_COMMITTEE_SIZE: usize, const EXECUTION_PAYLOAD_TREE_DEPTH: usize>
+{
     /// Chain parameters
     pub genesis_validators_root: Root,
     pub min_sync_committee_participants: U64,
@@ -66,13 +63,18 @@ pub struct ClientState<const SYNC_COMMITTEE_SIZE: usize> {
 
     /// Verifier
     #[serde(skip)]
-    pub consensus_verifier:
-        CurrentNextSyncProtocolVerifier<TrustedConsensusState<SYNC_COMMITTEE_SIZE>>,
+    pub consensus_verifier: CurrentNextSyncProtocolVerifier<
+        SYNC_COMMITTEE_SIZE,
+        EXECUTION_PAYLOAD_TREE_DEPTH,
+        TrustedConsensusState<SYNC_COMMITTEE_SIZE>,
+    >,
     #[serde(skip)]
     pub execution_verifier: ExecutionVerifier,
 }
 
-impl<const SYNC_COMMITTEE_SIZE: usize> ClientState<SYNC_COMMITTEE_SIZE> {
+impl<const SYNC_COMMITTEE_SIZE: usize, const EXECUTION_PAYLOAD_TREE_DEPTH: usize>
+    ClientState<SYNC_COMMITTEE_SIZE, EXECUTION_PAYLOAD_TREE_DEPTH>
+{
     pub fn with_frozen_height(self, h: Height) -> Self {
         Self {
             frozen_height: Some(h),
@@ -215,7 +217,9 @@ impl<const SYNC_COMMITTEE_SIZE: usize> ClientState<SYNC_COMMITTEE_SIZE> {
     }
 }
 
-impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMMITTEE_SIZE> {
+impl<const SYNC_COMMITTEE_SIZE: usize, const EXECUTION_PAYLOAD_TREE_DEPTH: usize> Ics2ClientState
+    for ClientState<SYNC_COMMITTEE_SIZE, EXECUTION_PAYLOAD_TREE_DEPTH>
+{
     fn chain_id(&self) -> ChainId {
         todo!()
     }
@@ -390,7 +394,8 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
         client_cons_state_path: &ibc::core::ics24_host::path::ClientConsensusStatePath,
         expected_consensus_state: &dyn ibc::core::ics02_client::consensus_state::ConsensusState,
     ) -> Result<(), ClientError> {
-        let client_state = downcast_eth_client_state::<SYNC_COMMITTEE_SIZE>(self)?;
+        let client_state =
+            downcast_eth_client_state::<SYNC_COMMITTEE_SIZE, EXECUTION_PAYLOAD_TREE_DEPTH>(self)?;
         client_state.verify_height(proof_height)?;
 
         let value = expected_consensus_state
@@ -414,7 +419,8 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
         counterparty_conn_path: &ibc::core::ics24_host::path::ConnectionPath,
         expected_counterparty_connection_end: &ibc::core::ics03_connection::connection::ConnectionEnd,
     ) -> Result<(), ClientError> {
-        let client_state = downcast_eth_client_state::<SYNC_COMMITTEE_SIZE>(self)?;
+        let client_state =
+            downcast_eth_client_state::<SYNC_COMMITTEE_SIZE, EXECUTION_PAYLOAD_TREE_DEPTH>(self)?;
         client_state.verify_height(proof_height)?;
 
         let value = expected_counterparty_connection_end
@@ -438,7 +444,8 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
         counterparty_chan_end_path: &ibc::core::ics24_host::path::ChannelEndPath,
         expected_counterparty_channel_end: &ibc::core::ics04_channel::channel::ChannelEnd,
     ) -> Result<(), ClientError> {
-        let client_state = downcast_eth_client_state::<SYNC_COMMITTEE_SIZE>(self)?;
+        let client_state =
+            downcast_eth_client_state::<SYNC_COMMITTEE_SIZE, EXECUTION_PAYLOAD_TREE_DEPTH>(self)?;
         client_state.verify_height(proof_height)?;
 
         let value = expected_counterparty_channel_end
@@ -463,7 +470,8 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
         client_state_path: &ibc::core::ics24_host::path::ClientStatePath,
         expected_client_state: Any,
     ) -> Result<(), ClientError> {
-        let client_state = downcast_eth_client_state::<SYNC_COMMITTEE_SIZE>(self)?;
+        let client_state =
+            downcast_eth_client_state::<SYNC_COMMITTEE_SIZE, EXECUTION_PAYLOAD_TREE_DEPTH>(self)?;
         client_state.verify_height(proof_height)?;
 
         let value = expected_client_state.encode_to_vec();
@@ -487,7 +495,8 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
         commitment_path: &ibc::core::ics24_host::path::CommitmentPath,
         commitment: ibc::core::ics04_channel::commitment::PacketCommitment,
     ) -> Result<(), ClientError> {
-        let client_state = downcast_eth_client_state::<SYNC_COMMITTEE_SIZE>(self)?;
+        let client_state =
+            downcast_eth_client_state::<SYNC_COMMITTEE_SIZE, EXECUTION_PAYLOAD_TREE_DEPTH>(self)?;
         client_state.verify_height(height)?;
 
         self.verify_membership(
@@ -509,7 +518,8 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
         ack_path: &ibc::core::ics24_host::path::AckPath,
         ack: ibc::core::ics04_channel::commitment::AcknowledgementCommitment,
     ) -> Result<(), ClientError> {
-        let client_state = downcast_eth_client_state::<SYNC_COMMITTEE_SIZE>(self)?;
+        let client_state =
+            downcast_eth_client_state::<SYNC_COMMITTEE_SIZE, EXECUTION_PAYLOAD_TREE_DEPTH>(self)?;
         client_state.verify_height(height)?;
 
         self.verify_membership(
@@ -531,7 +541,8 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
         seq_recv_path: &ibc::core::ics24_host::path::SeqRecvPath,
         sequence: ibc::core::ics04_channel::packet::Sequence,
     ) -> Result<(), ClientError> {
-        let client_state = downcast_eth_client_state::<SYNC_COMMITTEE_SIZE>(self)?;
+        let client_state =
+            downcast_eth_client_state::<SYNC_COMMITTEE_SIZE, EXECUTION_PAYLOAD_TREE_DEPTH>(self)?;
         client_state.verify_height(height)?;
 
         let mut seq_bytes = Vec::new();
@@ -557,7 +568,8 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
         root: &ibc::core::ics23_commitment::commitment::CommitmentRoot,
         receipt_path: &ibc::core::ics24_host::path::ReceiptPath,
     ) -> Result<(), ClientError> {
-        let client_state = downcast_eth_client_state::<SYNC_COMMITTEE_SIZE>(self)?;
+        let client_state =
+            downcast_eth_client_state::<SYNC_COMMITTEE_SIZE, EXECUTION_PAYLOAD_TREE_DEPTH>(self)?;
         client_state.verify_height(height)?;
 
         self.verify_non_membership(
@@ -595,13 +607,13 @@ fn validate_within_trusting_period(
     Ok(())
 }
 
-impl<const SYNC_COMMITTEE_SIZE: usize> Protobuf<RawClientState>
-    for ClientState<SYNC_COMMITTEE_SIZE>
+impl<const SYNC_COMMITTEE_SIZE: usize, const EXECUTION_PAYLOAD_TREE_DEPTH: usize>
+    Protobuf<RawClientState> for ClientState<SYNC_COMMITTEE_SIZE, EXECUTION_PAYLOAD_TREE_DEPTH>
 {
 }
 
-impl<const SYNC_COMMITTEE_SIZE: usize> TryFrom<RawClientState>
-    for ClientState<SYNC_COMMITTEE_SIZE>
+impl<const SYNC_COMMITTEE_SIZE: usize, const EXECUTION_PAYLOAD_TREE_DEPTH: usize>
+    TryFrom<RawClientState> for ClientState<SYNC_COMMITTEE_SIZE, EXECUTION_PAYLOAD_TREE_DEPTH>
 {
     type Error = Error;
 
@@ -655,8 +667,10 @@ impl<const SYNC_COMMITTEE_SIZE: usize> TryFrom<RawClientState>
     }
 }
 
-impl<const SYNC_COMMITTEE_SIZE: usize> From<ClientState<SYNC_COMMITTEE_SIZE>> for RawClientState {
-    fn from(value: ClientState<SYNC_COMMITTEE_SIZE>) -> Self {
+impl<const SYNC_COMMITTEE_SIZE: usize, const EXECUTION_PAYLOAD_TREE_DEPTH: usize>
+    From<ClientState<SYNC_COMMITTEE_SIZE, EXECUTION_PAYLOAD_TREE_DEPTH>> for RawClientState
+{
+    fn from(value: ClientState<SYNC_COMMITTEE_SIZE, EXECUTION_PAYLOAD_TREE_DEPTH>) -> Self {
         use ethereum_ibc_proto::ibc::core::client::v1::Height as ProtoHeight;
         use ethereum_ibc_proto::ibc::lightclients::ethereum::v1::{
             ForkParameters as ProtoForkParameters, Fraction as ProtoFraction,
@@ -708,18 +722,27 @@ impl<const SYNC_COMMITTEE_SIZE: usize> From<ClientState<SYNC_COMMITTEE_SIZE>> fo
     }
 }
 
-impl<const SYNC_COMMITTEE_SIZE: usize> Protobuf<Any> for ClientState<SYNC_COMMITTEE_SIZE> {}
+impl<const SYNC_COMMITTEE_SIZE: usize, const EXECUTION_PAYLOAD_TREE_DEPTH: usize> Protobuf<Any>
+    for ClientState<SYNC_COMMITTEE_SIZE, EXECUTION_PAYLOAD_TREE_DEPTH>
+{
+}
 
-impl<const SYNC_COMMITTEE_SIZE: usize> TryFrom<Any> for ClientState<SYNC_COMMITTEE_SIZE> {
+impl<const SYNC_COMMITTEE_SIZE: usize, const EXECUTION_PAYLOAD_TREE_DEPTH: usize> TryFrom<Any>
+    for ClientState<SYNC_COMMITTEE_SIZE, EXECUTION_PAYLOAD_TREE_DEPTH>
+{
     type Error = ClientError;
 
     fn try_from(raw: Any) -> Result<Self, Self::Error> {
         use bytes::Buf;
         use core::ops::Deref;
 
-        fn decode_client_state<const SYNC_COMMITTEE_SIZE: usize, B: Buf>(
+        fn decode_client_state<
+            const SYNC_COMMITTEE_SIZE: usize,
+            const EXECUTION_PAYLOAD_TREE_DEPTH: usize,
+            B: Buf,
+        >(
             buf: B,
-        ) -> Result<ClientState<SYNC_COMMITTEE_SIZE>, Error> {
+        ) -> Result<ClientState<SYNC_COMMITTEE_SIZE, EXECUTION_PAYLOAD_TREE_DEPTH>, Error> {
             RawClientState::decode(buf)
                 .map_err(Error::Decode)?
                 .try_into()
@@ -727,8 +750,10 @@ impl<const SYNC_COMMITTEE_SIZE: usize> TryFrom<Any> for ClientState<SYNC_COMMITT
 
         match raw.type_url.as_str() {
             ETHEREUM_CLIENT_STATE_TYPE_URL => {
-                decode_client_state::<SYNC_COMMITTEE_SIZE, &[u8]>(raw.value.deref())
-                    .map_err(Into::into)
+                decode_client_state::<SYNC_COMMITTEE_SIZE, EXECUTION_PAYLOAD_TREE_DEPTH, &[u8]>(
+                    raw.value.deref(),
+                )
+                .map_err(Into::into)
             }
             _ => Err(ClientError::UnknownClientStateType {
                 client_state_type: raw.type_url,
@@ -737,8 +762,10 @@ impl<const SYNC_COMMITTEE_SIZE: usize> TryFrom<Any> for ClientState<SYNC_COMMITT
     }
 }
 
-impl<const SYNC_COMMITTEE_SIZE: usize> From<ClientState<SYNC_COMMITTEE_SIZE>> for Any {
-    fn from(value: ClientState<SYNC_COMMITTEE_SIZE>) -> Self {
+impl<const SYNC_COMMITTEE_SIZE: usize, const EXECUTION_PAYLOAD_TREE_DEPTH: usize>
+    From<ClientState<SYNC_COMMITTEE_SIZE, EXECUTION_PAYLOAD_TREE_DEPTH>> for Any
+{
+    fn from(value: ClientState<SYNC_COMMITTEE_SIZE, EXECUTION_PAYLOAD_TREE_DEPTH>) -> Self {
         Self {
             type_url: ETHEREUM_CLIENT_STATE_TYPE_URL.to_string(),
             value: Protobuf::<RawClientState>::encode_vec(&value)
@@ -747,11 +774,14 @@ impl<const SYNC_COMMITTEE_SIZE: usize> From<ClientState<SYNC_COMMITTEE_SIZE>> fo
     }
 }
 
-fn downcast_eth_client_state<const SYNC_COMMITTEE_SIZE: usize>(
+fn downcast_eth_client_state<
+    const SYNC_COMMITTEE_SIZE: usize,
+    const EXECUTION_PAYLOAD_TREE_DEPTH: usize,
+>(
     cs: &dyn Ics2ClientState,
-) -> Result<&ClientState<SYNC_COMMITTEE_SIZE>, ClientError> {
+) -> Result<&ClientState<SYNC_COMMITTEE_SIZE, EXECUTION_PAYLOAD_TREE_DEPTH>, ClientError> {
     cs.as_any()
-        .downcast_ref::<ClientState<SYNC_COMMITTEE_SIZE>>()
+        .downcast_ref::<ClientState<SYNC_COMMITTEE_SIZE, EXECUTION_PAYLOAD_TREE_DEPTH>>()
         .ok_or_else(|| ClientError::ClientArgsTypeMismatch {
             client_type: eth_client_type(),
         })

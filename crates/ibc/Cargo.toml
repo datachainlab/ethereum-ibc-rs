@@ -15,8 +15,8 @@ tiny-keccak = { version = "2.0.2", default-features = false }
 ssz-rs = { git = "https://github.com/bluele/ssz_rs", branch = "serde-no-std", default-features = false, features = ["serde"] }
 
 ethereum-ibc-proto = { path = "../../proto", default-features = false }
-ethereum-consensus = { git = "https://github.com/datachainlab/ethereum-light-client-rs", rev = "aac304f27372e8a0fb950522ee9cd6f41e43f56f", default-features = false }
-ethereum-light-client-verifier = { git = "https://github.com/datachainlab/ethereum-light-client-rs", rev = "aac304f27372e8a0fb950522ee9cd6f41e43f56f", default-features = false }
+ethereum-consensus = { git = "https://github.com/datachainlab/ethereum-light-client-rs", rev = "f9efeb24a722db91d387eaa198b4cdc652ee4c93", default-features = false }
+ethereum-light-client-verifier = { git = "https://github.com/datachainlab/ethereum-light-client-rs", rev = "f9efeb24a722db91d387eaa198b4cdc652ee4c93", default-features = false }
 
 [dev-dependencies]
 time = { version = "0.3", default-features = false, features = ["macros", "parsing"] }
