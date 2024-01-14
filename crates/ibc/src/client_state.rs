@@ -101,7 +101,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize, const EXECUTION_PAYLOAD_TREE_DEPTH: usize
             self.slots_per_epoch,
             self.epochs_per_sync_committee_period,
             self.genesis_time,
-            self.genesis_validators_root.clone(),
+            self.genesis_validators_root,
             self.min_sync_committee_participants.0 as usize,
             self.trust_level.clone(),
             move || current_slot,
