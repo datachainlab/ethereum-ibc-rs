@@ -10,6 +10,8 @@ pub mod header;
 pub mod misbehaviour;
 pub mod types;
 pub mod update;
+pub use ethereum_consensus as consensus;
+pub use ethereum_light_client_verifier as light_client_verifier;
 
 mod internal_prelude {
     pub use alloc::boxed::Box;

@@ -36,15 +36,25 @@ pub fn new_consensus_update<const SYNC_COMMITTEE_SIZE: usize>(
     }
 }
 
-pub fn apply_updates<const SYNC_COMMITTEE_SIZE: usize, C: ChainContext>(
+pub fn apply_updates<
+    const SYNC_COMMITTEE_SIZE: usize,
+    const EXECUTION_PAYLOAD_TREE_DEPTH: usize,
+    C: ChainContext,
+>(
     ctx: &C,
-    client_state: &ClientState<SYNC_COMMITTEE_SIZE>,
+    client_state: &ClientState<SYNC_COMMITTEE_SIZE, EXECUTION_PAYLOAD_TREE_DEPTH>,
     trusted_consensus_state: &TrustedConsensusState<SYNC_COMMITTEE_SIZE>,
     consensus_update: ConsensusUpdateInfo<SYNC_COMMITTEE_SIZE>,
     execution_update: ExecutionUpdateInfo,
     account_update: AccountUpdateInfo,
     timestamp: Timestamp,
-) -> Result<(ClientState<SYNC_COMMITTEE_SIZE>, ConsensusState), Error> {
+) -> Result<
+    (
+        ClientState<SYNC_COMMITTEE_SIZE, EXECUTION_PAYLOAD_TREE_DEPTH>,
+        ConsensusState,
+    ),
+    Error,
+> {
     let mut new_client_state = client_state.clone();
 
     let store_period =
