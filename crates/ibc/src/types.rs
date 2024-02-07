@@ -178,15 +178,14 @@ pub(crate) fn convert_execution_update_to_proto(
     }
 }
 
+/// CONTRACT: `SYNC_COMMITTEE_SIZE` must be greater than 0
 pub(crate) fn convert_sync_aggregate_to_proto<const SYNC_COMMITTEE_SIZE: usize>(
     sync_aggregate: SyncAggregate<SYNC_COMMITTEE_SIZE>,
 ) -> ProtoSyncAggregate {
+    let sync_committee_bits = ssz_rs::serialize(&sync_aggregate.sync_committee_bits)
+        .expect("failed to serialize sync_committee_bits: this should never happen unless `SYNC_COMMITTEE_SIZE` is 0");
     ProtoSyncAggregate {
-        sync_committee_bits: sync_aggregate
-            .sync_committee_bits
-            .iter()
-            .map(|b| if b == true { 1 } else { 0 })
-            .collect(),
+        sync_committee_bits,
         sync_committee_signature: sync_aggregate.sync_committee_signature.0.to_vec(),
     }
 }
@@ -197,7 +196,12 @@ pub(crate) fn convert_proto_sync_aggregate<const SYNC_COMMITTEE_SIZE: usize>(
     Ok(SyncAggregate {
         sync_committee_bits: Bitvector::<SYNC_COMMITTEE_SIZE>::deserialize(
             sync_aggregate.sync_committee_bits.as_slice(),
-        )?,
+        )
+        .map_err(|e| Error::DeserializeSyncCommitteeBitsError {
+            parent: e,
+            sync_committee_size: SYNC_COMMITTEE_SIZE,
+            sync_committee_bits: sync_aggregate.sync_committee_bits,
+        })?,
         sync_committee_signature: Signature::try_from(sync_aggregate.sync_committee_signature)?,
     })
 }
