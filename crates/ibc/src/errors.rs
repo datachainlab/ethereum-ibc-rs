@@ -76,8 +76,6 @@ pub enum Error {
     EthereumConsensusError(ethereum_consensus::errors::Error),
     /// decode error: `{0}`
     Decode(prost::DecodeError),
-    /// ssz deserialize error: `{0}`
-    SSZDeserialize(ssz_rs::DeserializeError),
     /// ics02 error: `{0}`
     ICS02(ClientError),
     /// ics24 error: `{0}`
@@ -88,6 +86,12 @@ pub enum Error {
     TimestampOverflowError(TimestampOverflowError),
     /// parse timestamp error: `{0}`
     ParseTimestampError(ParseTimestampError),
+    /// deserialize sync committee bits error: `{parent}` sync_committee_size={sync_committee_size} sync_committee_bits={sync_committee_bits:?}
+    DeserializeSyncCommitteeBitsError {
+        parent: ssz_rs::DeserializeError,
+        sync_committee_size: usize,
+        sync_committee_bits: Vec<u8>,
+    },
 }
 
 impl From<Error> for ClientError {
@@ -131,12 +135,6 @@ impl From<ClientError> for Error {
 impl From<ValidationError> for Error {
     fn from(value: ValidationError) -> Self {
         Self::ICS24(value)
-    }
-}
-
-impl From<ssz_rs::DeserializeError> for Error {
-    fn from(value: ssz_rs::DeserializeError) -> Self {
-        Self::SSZDeserialize(value)
     }
 }
 
