@@ -35,24 +35,32 @@ impl<const SYNC_COMMITTEE_SIZE: usize> TryFrom<ProtoTrustedSyncCommittee>
     type Error = Error;
 
     fn try_from(value: ProtoTrustedSyncCommittee) -> Result<Self, Error> {
+        let trusted_height = value
+            .trusted_height
+            .as_ref()
+            .ok_or(Error::proto_missing("trusted_height"))?;
         Ok(TrustedSyncCommittee {
             height: Height::new(
-                value.trusted_height.as_ref().unwrap().revision_number,
-                value.trusted_height.as_ref().unwrap().revision_height,
+                trusted_height.revision_number,
+                trusted_height.revision_height,
             )?,
             sync_committee: SyncCommittee {
                 pubkeys: Vector::<PublicKey, SYNC_COMMITTEE_SIZE>::from_iter(
                     value
                         .sync_committee
                         .as_ref()
-                        .unwrap()
+                        .ok_or(Error::proto_missing("sync_committee"))?
                         .pubkeys
                         .clone()
                         .into_iter()
-                        .map(|pk| PublicKey::try_from(pk).unwrap()),
+                        .map(|pk| pk.try_into())
+                        .collect::<Result<Vec<PublicKey>, _>>()?,
                 ),
                 aggregate_pubkey: PublicKey::try_from(
-                    value.sync_committee.unwrap().aggregate_pubkey,
+                    value
+                        .sync_committee
+                        .ok_or(Error::proto_missing("sync_committee"))?
+                        .aggregate_pubkey,
                 )?,
             },
             is_next: value.is_next,
@@ -250,10 +258,18 @@ pub(crate) fn convert_consensus_update_to_proto<const SYNC_COMMITTEE_SIZE: usize
 pub(crate) fn convert_proto_to_consensus_update<const SYNC_COMMITTEE_SIZE: usize>(
     consensus_update: ProtoLightClientUpdate,
 ) -> Result<ConsensusUpdateInfo<SYNC_COMMITTEE_SIZE>, Error> {
-    let attested_header =
-        convert_proto_to_header(consensus_update.attested_header.as_ref().unwrap())?;
-    let finalized_header =
-        convert_proto_to_header(consensus_update.finalized_header.as_ref().unwrap())?;
+    let attested_header = convert_proto_to_header(
+        consensus_update
+            .attested_header
+            .as_ref()
+            .ok_or(Error::proto_missing("attested_header"))?,
+    )?;
+    let finalized_header = convert_proto_to_header(
+        consensus_update
+            .finalized_header
+            .as_ref()
+            .ok_or(Error::proto_missing("finalized_header"))?,
+    )?;
 
     let light_client_update = LightClientUpdate {
         attested_header,
@@ -261,7 +277,7 @@ pub(crate) fn convert_proto_to_consensus_update<const SYNC_COMMITTEE_SIZE: usize
             || consensus_update
                 .next_sync_committee
                 .as_ref()
-                .unwrap()
+                .ok_or(Error::proto_missing("next_sync_committee"))?
                 .pubkeys
                 .is_empty()
             || consensus_update.next_sync_committee_branch.is_empty()
@@ -274,15 +290,16 @@ pub(crate) fn convert_proto_to_consensus_update<const SYNC_COMMITTEE_SIZE: usize
                         consensus_update
                             .next_sync_committee
                             .clone()
-                            .unwrap()
+                            .ok_or(Error::proto_missing("next_sync_committee"))?
                             .pubkeys
                             .into_iter()
-                            .map(|pk| PublicKey::try_from(pk).unwrap()),
+                            .map(|pk| pk.try_into())
+                            .collect::<Result<Vec<PublicKey>, _>>()?,
                     ),
                     aggregate_pubkey: PublicKey::try_from(
                         consensus_update
                             .next_sync_committee
-                            .unwrap()
+                            .ok_or(Error::proto_missing("next_sync_committee"))?
                             .aggregate_pubkey,
                     )?,
                 },
@@ -293,7 +310,11 @@ pub(crate) fn convert_proto_to_consensus_update<const SYNC_COMMITTEE_SIZE: usize
             finalized_header,
             decode_branch(consensus_update.finalized_header_branch),
         ),
-        sync_aggregate: convert_proto_sync_aggregate(consensus_update.sync_aggregate.unwrap())?,
+        sync_aggregate: convert_proto_sync_aggregate(
+            consensus_update
+                .sync_aggregate
+                .ok_or(Error::proto_missing("sync_aggregate"))?,
+        )?,
         signature_slot: consensus_update.signature_slot.into(),
     };
 

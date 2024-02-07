@@ -92,6 +92,14 @@ pub enum Error {
         sync_committee_size: usize,
         sync_committee_bits: Vec<u8>,
     },
+    /// proto missing field error: `{0}`
+    ProtoMissingFieldError(String),
+}
+
+impl Error {
+    pub fn proto_missing(s: &str) -> Self {
+        Error::ProtoMissingFieldError(s.to_string())
+    }
 }
 
 impl From<Error> for ClientError {
