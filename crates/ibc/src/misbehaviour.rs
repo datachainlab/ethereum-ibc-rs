@@ -63,13 +63,20 @@ impl<const SYNC_COMMITTEE_SIZE: usize> TryFrom<RawFinalizedHeaderMisbehaviour>
     fn try_from(value: RawFinalizedHeaderMisbehaviour) -> Result<Self, Self::Error> {
         Ok(Self {
             client_id: ClientId::from_str(&value.client_id)?,
-            trusted_sync_committee: value.trusted_sync_committee.unwrap().try_into()?,
+            trusted_sync_committee: value
+                .trusted_sync_committee
+                .ok_or(Error::proto_missing("trusted_sync_committee"))?
+                .try_into()?,
             data: MisbehaviourData::FinalizedHeader(FinalizedHeaderMisbehaviour {
                 consensus_update_1: convert_proto_to_consensus_update(
-                    value.consensus_update_1.unwrap(),
+                    value
+                        .consensus_update_1
+                        .ok_or(Error::proto_missing("consensus_update_1"))?,
                 )?,
                 consensus_update_2: convert_proto_to_consensus_update(
-                    value.consensus_update_2.unwrap(),
+                    value
+                        .consensus_update_2
+                        .ok_or(Error::proto_missing("consensus_update_2"))?,
                 )?,
             }),
         })
@@ -83,13 +90,20 @@ impl<const SYNC_COMMITTEE_SIZE: usize> TryFrom<RawNextSyncCommitteeMisbehaviour>
     fn try_from(value: RawNextSyncCommitteeMisbehaviour) -> Result<Self, Self::Error> {
         Ok(Self {
             client_id: ClientId::from_str(&value.client_id)?,
-            trusted_sync_committee: value.trusted_sync_committee.unwrap().try_into()?,
+            trusted_sync_committee: value
+                .trusted_sync_committee
+                .ok_or(Error::proto_missing("trusted_sync_committee"))?
+                .try_into()?,
             data: MisbehaviourData::NextSyncCommittee(NextSyncCommitteeMisbehaviour {
                 consensus_update_1: convert_proto_to_consensus_update(
-                    value.consensus_update_1.unwrap(),
+                    value
+                        .consensus_update_1
+                        .ok_or(Error::proto_missing("consensus_update_1"))?,
                 )?,
                 consensus_update_2: convert_proto_to_consensus_update(
-                    value.consensus_update_2.unwrap(),
+                    value
+                        .consensus_update_2
+                        .ok_or(Error::proto_missing("consensus_update_2"))?,
                 )?,
             }),
         })

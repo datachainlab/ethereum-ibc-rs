@@ -55,10 +55,18 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Protobuf<RawHeader> for Header<SYNC_COMMI
 impl<const SYNC_COMMITTEE_SIZE: usize> TryFrom<RawHeader> for Header<SYNC_COMMITTEE_SIZE> {
     type Error = Error;
     fn try_from(value: RawHeader) -> Result<Self, Self::Error> {
-        let trusted_sync_committee = value.trusted_sync_committee.unwrap();
-        let consensus_update = value.consensus_update.unwrap();
-        let execution_update = value.execution_update.unwrap();
-        let account_update = value.account_update.unwrap();
+        let trusted_sync_committee = value
+            .trusted_sync_committee
+            .ok_or(Error::proto_missing("trusted_sync_committee"))?;
+        let consensus_update = value
+            .consensus_update
+            .ok_or(Error::proto_missing("consensus_update"))?;
+        let execution_update = value
+            .execution_update
+            .ok_or(Error::proto_missing("execution_update"))?;
+        let account_update = value
+            .account_update
+            .ok_or(Error::proto_missing("account_update"))?;
 
         Ok(Self {
             trusted_sync_committee: trusted_sync_committee.try_into()?,

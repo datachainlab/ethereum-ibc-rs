@@ -108,7 +108,6 @@ pub fn apply_updates<
             )?,
             current_sync_committee: trusted_consensus_state
                 .next_sync_committee()
-                .as_ref()
                 .unwrap()
                 .aggregate_pubkey
                 .clone(),

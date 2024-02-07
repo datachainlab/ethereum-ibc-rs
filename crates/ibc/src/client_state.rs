@@ -625,7 +625,9 @@ impl<const SYNC_COMMITTEE_SIZE: usize, const EXECUTION_PAYLOAD_TREE_DEPTH: usize
             version
         }
 
-        let raw_fork_parameters = value.fork_parameters.unwrap();
+        let raw_fork_parameters = value
+            .fork_parameters
+            .ok_or(Error::proto_missing("fork_parameters"))?;
         let fork_parameters = ForkParameters::new(
             bytes_to_version(raw_fork_parameters.genesis_fork_version),
             raw_fork_parameters
@@ -634,7 +636,14 @@ impl<const SYNC_COMMITTEE_SIZE: usize, const EXECUTION_PAYLOAD_TREE_DEPTH: usize
                 .map(|f| ForkParameter::new(bytes_to_version(f.version), f.epoch.into()))
                 .collect(),
         );
-        let trust_level = value.trust_level.unwrap();
+        let trust_level = value
+            .trust_level
+            .ok_or(Error::proto_missing("trust_level"))?;
+        let frozen_height = if let Some(h) = value.frozen_height {
+            Some(Height::new(h.revision_number, h.revision_height)?)
+        } else {
+            None
+        };
         Ok(Self {
             genesis_validators_root: H256::from_slice(&value.genesis_validators_root),
             min_sync_committee_participants: value.min_sync_committee_participants.into(),
@@ -658,9 +667,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize, const EXECUTION_PAYLOAD_TREE_DEPTH: usize
                 .map_err(|_| Error::NegativeMaxClockDrift)?,
             latest_slot: value.latest_slot.into(),
             latest_execution_block_number: value.latest_execution_block_number.into(),
-            frozen_height: value
-                .frozen_height
-                .map(|h| Height::new(h.revision_number, h.revision_height).unwrap()),
+            frozen_height,
             consensus_verifier: Default::default(),
             execution_verifier: Default::default(),
         })
