@@ -989,4 +989,15 @@ mod tests {
             panic!("expected error");
         }
     }
+
+    #[test]
+    fn test_trim_left_zero() {
+        assert_eq!(trim_left_zero(&[1, 2, 3, 4]), [1, 2, 3, 4]);
+        assert_eq!(trim_left_zero(&[1, 2, 3, 0]), [1, 2, 3, 0]);
+        assert_eq!(trim_left_zero(&[0, 2, 3, 0]), [2, 3, 0]);
+        assert_eq!(trim_left_zero(&[0, 0, 3, 0]), [3, 0]);
+        assert_eq!(trim_left_zero(&[0, 0, 0, 4]), [4]);
+        assert!(trim_left_zero(&[0, 0, 0, 0]).is_empty());
+        assert!(trim_left_zero(&[]).is_empty());
+    }
 }
