@@ -123,7 +123,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize, const EXECUTION_PAYLOAD_TREE_DEPTH: usize
             .verify_membership(
                 H256::from_slice(root.as_bytes()),
                 key.as_bytes(),
-                rlp::encode(&value).as_ref(),
+                rlp::encode(&trim_left_zero(&value)).as_ref(),
                 proof.clone(),
             )
             .map_err(|e| ClientError::ClientSpecific {
@@ -822,6 +822,17 @@ fn maybe_consensus_state(
             }),
         },
     }
+}
+
+fn trim_left_zero(value: &[u8]) -> &[u8] {
+    let mut pos = 0;
+    for v in value {
+        if *v != 0 {
+            break;
+        }
+        pos += 1;
+    }
+    &value[pos..]
 }
 
 #[cfg(test)]
