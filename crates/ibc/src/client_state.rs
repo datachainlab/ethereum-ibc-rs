@@ -3,6 +3,7 @@ use crate::consensus_state::{ConsensusState, TrustedConsensusState};
 use crate::errors::Error;
 use crate::header::Header;
 use crate::misbehaviour::Misbehaviour;
+use crate::types::AccountUpdateInfo;
 use crate::update::apply_updates;
 use crate::{eth_client_type, internal_prelude::*};
 use core::time::Duration;
@@ -31,9 +32,11 @@ use ibc::Height;
 use ibc_proto::google::protobuf::Any;
 use ibc_proto::protobuf::Protobuf;
 use prost::Message;
+use rlp::Rlp;
 use serde::{Deserialize, Serialize};
 
 pub const ETHEREUM_CLIENT_STATE_TYPE_URL: &str = "/ibc.lightclients.ethereum.v1.ClientState";
+pub const ETHEREUM_ACCOUNT_STORAGE_ROOT_INDEX: usize = 2;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ClientState<const SYNC_COMMITTEE_SIZE: usize, const EXECUTION_PAYLOAD_TREE_DEPTH: usize>
@@ -106,6 +109,38 @@ impl<const SYNC_COMMITTEE_SIZE: usize, const EXECUTION_PAYLOAD_TREE_DEPTH: usize
             self.trust_level.clone(),
             move || current_slot,
         )
+    }
+
+    pub fn verify_account_storage(
+        &self,
+        state_root: H256,
+        address: &Address,
+        account_update: &AccountUpdateInfo,
+    ) -> Result<(), Error> {
+        match self.execution_verifier.verify(
+            state_root,
+            address.0.as_slice(),
+            account_update.account_proof.clone(),
+        )? {
+            Some(account) => {
+                let storage_root = H256(
+                    Rlp::new(&account)
+                        .at(ETHEREUM_ACCOUNT_STORAGE_ROOT_INDEX)?
+                        .as_val::<Vec<u8>>()?
+                        .try_into()
+                        .map_err(Error::InvalidAccountStorageRoot)?,
+                );
+                if account_update.account_storage_root == storage_root {
+                    Ok(())
+                } else {
+                    Err(Error::AccountStorageRootMismatch(
+                        account_update.account_storage_root,
+                        storage_root,
+                    ))
+                }
+            }
+            None => Err(Error::AccountNotFound(state_root, address.clone())),
+        }
     }
 
     pub fn verify_membership(
@@ -296,6 +331,12 @@ impl<const SYNC_COMMITTEE_SIZE: usize, const EXECUTION_PAYLOAD_TREE_DEPTH: usize
                 &execution_update,
             )
             .map_err(Error::VerificationError)?;
+
+        self.verify_account_storage(
+            execution_update.state_root,
+            &self.ibc_address,
+            &account_update,
+        )?;
 
         // check if the current timestamp is within the trusting period
         validate_within_trusting_period(
@@ -802,7 +843,7 @@ fn downcast_eth_consensus_state(
         .ok_or_else(|| ClientError::ClientArgsTypeMismatch {
             client_type: eth_client_type(),
         })
-        .map(Clone::clone)
+        .cloned()
 }
 
 fn maybe_consensus_state(

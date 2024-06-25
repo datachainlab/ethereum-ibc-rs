@@ -5,7 +5,7 @@ use ethereum_consensus::{
     beacon::{BeaconBlockHeader, Slot},
     bls::PublicKey,
     sync_protocol::SyncCommitteePeriod,
-    types::U64,
+    types::{Address, H256, U64},
 };
 use ibc::{
     core::{ics02_client::error::ClientError, ics24_host::error::ValidationError, ContextError},
@@ -29,6 +29,12 @@ pub enum Error {
     InvalidProofFormatError(String),
     /// rlp decode error: {0}
     RLPDecodeError(rlp::DecoderError),
+    /// account not found: state_root={0:?} address={1:?}
+    AccountNotFound(H256, Address),
+    /// account storage root mismatch: expected={0:?} actual={1:?}
+    AccountStorageRootMismatch(H256, H256),
+    /// invalid account storage root: {0:?}
+    InvalidAccountStorageRoot(Vec<u8>),
     /// future period error: store={0} update={1}
     FuturePeriodError(U64, U64),
     /// both updates of misbehaviour data must have same period: {0} != {1}
