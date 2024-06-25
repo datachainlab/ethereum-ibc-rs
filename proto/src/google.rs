@@ -6,10 +6,10 @@ pub mod protobuf {
     // source: https://github.com/tokio-rs/prost/blob/master/prost-types/src/lib.rs
     #[allow(unused_imports)]
     use core::convert::TryFrom;
-    use core::i32;
-    use core::i64;
     #[allow(unused_imports)]
     use core::time;
+    use i32;
+    use i64;
 
     // The Protobuf `Duration` and `Timestamp` types can't delegate to the standard library equivalents
     // because the Protobuf versions are signed. To make them easier to work with, `From` conversions

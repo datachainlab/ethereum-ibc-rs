@@ -843,7 +843,7 @@ fn downcast_eth_consensus_state(
         .ok_or_else(|| ClientError::ClientArgsTypeMismatch {
             client_type: eth_client_type(),
         })
-        .map(Clone::clone)
+        .cloned()
 }
 
 fn maybe_consensus_state(
