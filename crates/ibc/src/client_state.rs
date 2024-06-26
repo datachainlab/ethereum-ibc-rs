@@ -32,7 +32,6 @@ use ibc::Height;
 use ibc_proto::google::protobuf::Any;
 use ibc_proto::protobuf::Protobuf;
 use prost::Message;
-use rlp::Rlp;
 use serde::{Deserialize, Serialize};
 
 pub const ETHEREUM_CLIENT_STATE_TYPE_URL: &str = "/ibc.lightclients.ethereum.v1.ClientState";
@@ -119,11 +118,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize, const EXECUTION_PAYLOAD_TREE_DEPTH: usize
     ) -> Result<(), Error> {
         match self
             .execution_verifier
-            .verify(
-                state_root,
-                address.0.as_slice(),
-                account_update.account_proof.clone(),
-            )
+            .verify_account(state_root, address, account_update.account_proof.clone())
             .map_err(|e| {
                 Error::MPTVerificationError(
                     e,
@@ -137,19 +132,12 @@ impl<const SYNC_COMMITTEE_SIZE: usize, const EXECUTION_PAYLOAD_TREE_DEPTH: usize
                 )
             })? {
             Some(account) => {
-                let storage_root = H256(
-                    Rlp::new(&account)
-                        .at(ETHEREUM_ACCOUNT_STORAGE_ROOT_INDEX)?
-                        .as_val::<Vec<u8>>()?
-                        .try_into()
-                        .map_err(Error::InvalidAccountStorageRoot)?,
-                );
-                if account_update.account_storage_root == storage_root {
+                if account_update.account_storage_root == account.storage_root {
                     Ok(())
                 } else {
                     Err(Error::AccountStorageRootMismatch(
                         account_update.account_storage_root,
-                        storage_root,
+                        account.storage_root,
                         state_root,
                         hex::encode(address.0),
                         account_update
@@ -160,15 +148,23 @@ impl<const SYNC_COMMITTEE_SIZE: usize, const EXECUTION_PAYLOAD_TREE_DEPTH: usize
                     ))
                 }
             }
-            None => Err(Error::AccountNotFound(
-                state_root,
-                hex::encode(address.0),
-                account_update
-                    .account_proof
-                    .iter()
-                    .map(hex::encode)
-                    .collect(),
-            )),
+            None => {
+                if account_update.account_storage_root.is_zero() {
+                    Ok(())
+                } else {
+                    Err(Error::AccountStorageRootMismatch(
+                        account_update.account_storage_root,
+                        H256::default(),
+                        state_root,
+                        hex::encode(address.0),
+                        account_update
+                            .account_proof
+                            .iter()
+                            .map(hex::encode)
+                            .collect(),
+                    ))
+                }
+            }
         }
     }
 
@@ -182,17 +178,26 @@ impl<const SYNC_COMMITTEE_SIZE: usize, const EXECUTION_PAYLOAD_TREE_DEPTH: usize
     ) -> Result<(), ClientError> {
         let proof = decode_eip1184_rlp_proof(proof.clone().into())?;
         let path = path.into();
+        let root = H256::from_slice(root.as_bytes());
+        if root.is_zero() {
+            return Err(ClientError::ClientSpecific {
+                description: format!(
+                    "failed to verify membership: root is zero: path={} value={:?}",
+                    path, value
+                ),
+            });
+        }
         let key = calculate_ibc_commitment_storage_key(&self.ibc_commitments_slot, path.clone());
         self.execution_verifier
             .verify_membership(
-                H256::from_slice(root.as_bytes()),
+                root,
                 key.as_bytes(),
                 rlp::encode(&trim_left_zero(&value)).as_ref(),
                 proof.clone(),
             )
             .map_err(|e| ClientError::ClientSpecific {
                 description: format!(
-                    "failed to verify membership: path={} root={:?} value={:?} proof={:?} error={}",
+                    "failed to verify membership: path={} root={} value={:?} proof={:?} error={}",
                     path, root, value, proof, e
                 ),
             })?;
@@ -208,16 +213,21 @@ impl<const SYNC_COMMITTEE_SIZE: usize, const EXECUTION_PAYLOAD_TREE_DEPTH: usize
     ) -> Result<(), ibc::core::ics02_client::error::ClientError> {
         let proof = decode_eip1184_rlp_proof(proof.clone().into())?;
         let path = path.into();
+        let root = H256::from_slice(root.as_bytes());
+        if root.is_zero() {
+            return Err(ClientError::ClientSpecific {
+                description: format!(
+                    "failed to verify non-membership: root is zero: path={}",
+                    path
+                ),
+            });
+        }
         let key = calculate_ibc_commitment_storage_key(&self.ibc_commitments_slot, path.clone());
         self.execution_verifier
-            .verify_non_membership(
-                H256::from_slice(root.as_bytes()),
-                key.as_bytes(),
-                proof.clone(),
-            )
+            .verify_non_membership(root, key.as_bytes(), proof.clone())
             .map_err(|e| ClientError::ClientSpecific {
                 description: format!(
-                    "failed to verify non-membership: path={} root={:?} proof={:?} error={}",
+                    "failed to verify non-membership: path={} root={} proof={:?} error={}",
                     path, root, proof, e
                 ),
             })?;
