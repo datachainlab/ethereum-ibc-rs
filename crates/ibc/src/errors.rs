@@ -5,7 +5,7 @@ use ethereum_consensus::{
     beacon::{BeaconBlockHeader, Slot},
     bls::PublicKey,
     sync_protocol::SyncCommitteePeriod,
-    types::{Address, H256, U64},
+    types::{H256, U64},
 };
 use ibc::{
     core::{ics02_client::error::ClientError, ics24_host::error::ValidationError, ContextError},
@@ -19,6 +19,13 @@ pub enum Error {
     InvalidRawConsensusState { reason: String },
     /// verification error: {0}
     VerificationError(ethereum_light_client_verifier::errors::Error),
+    /// mpt verification error: {0} state_root={1} address={2} account_proof={3:?}
+    MPTVerificationError(
+        ethereum_light_client_verifier::errors::Error,
+        H256,
+        String,
+        Vec<String>,
+    ),
     /// consensus state doesn't have next sync committee
     NoNextSyncCommitteeInConsensusState,
     /// invalid current sync committee keys: expected={0:?} actual={1:?}
@@ -29,10 +36,10 @@ pub enum Error {
     InvalidProofFormatError(String),
     /// rlp decode error: {0}
     RLPDecodeError(rlp::DecoderError),
-    /// account not found: state_root={0:?} address={1:?}
-    AccountNotFound(H256, Address),
-    /// account storage root mismatch: expected={0:?} actual={1:?}
-    AccountStorageRootMismatch(H256, H256),
+    /// account not found: state_root={0} address={1} account_proof={2:?}
+    AccountNotFound(H256, String, Vec<String>),
+    /// account storage root mismatch: expected={0} actual={1} state_root={2} address={3} account_proof={4:?}
+    AccountStorageRootMismatch(H256, H256, H256, String, Vec<String>),
     /// invalid account storage root: {0:?}
     InvalidAccountStorageRoot(Vec<u8>),
     /// future period error: store={0} update={1}
@@ -119,12 +126,6 @@ impl From<Error> for ClientError {
 impl From<Error> for ContextError {
     fn from(value: Error) -> Self {
         ContextError::ClientError(value.into())
-    }
-}
-
-impl From<ethereum_light_client_verifier::errors::Error> for Error {
-    fn from(value: ethereum_light_client_verifier::errors::Error) -> Self {
-        Error::VerificationError(value)
     }
 }
 
