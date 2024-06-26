@@ -13,6 +13,7 @@ bytes = { version = "1.2.1", default-features = false }
 rlp = { version = "0.5.2", default-features = false }
 tiny-keccak = { version = "2.0.2", default-features = false }
 ssz-rs = { git = "https://github.com/bluele/ssz_rs", branch = "serde-no-std", default-features = false, features = ["serde"] }
+hex = { version = "0.4.3", default-features = false }
 
 ethereum-ibc-proto = { path = "../../proto", default-features = false }
 ethereum-consensus = { git = "https://github.com/datachainlab/ethereum-light-client-rs", rev = "186c5b1d9935f15428ca8b209ad99ed20eaf81c6", default-features = false }
@@ -20,3 +21,4 @@ ethereum-light-client-verifier = { git = "https://github.com/datachainlab/ethere
 
 [dev-dependencies]
 time = { version = "0.3", default-features = false, features = ["macros", "parsing"] }
+hex-literal = "0.4.1"

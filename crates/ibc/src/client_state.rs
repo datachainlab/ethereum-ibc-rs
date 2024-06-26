@@ -117,11 +117,25 @@ impl<const SYNC_COMMITTEE_SIZE: usize, const EXECUTION_PAYLOAD_TREE_DEPTH: usize
         address: &Address,
         account_update: &AccountUpdateInfo,
     ) -> Result<(), Error> {
-        match self.execution_verifier.verify(
-            state_root,
-            address.0.as_slice(),
-            account_update.account_proof.clone(),
-        )? {
+        match self
+            .execution_verifier
+            .verify(
+                state_root,
+                address.0.as_slice(),
+                account_update.account_proof.clone(),
+            )
+            .map_err(|e| {
+                Error::MPTVerificationError(
+                    e,
+                    state_root,
+                    hex::encode(address.0),
+                    account_update
+                        .account_proof
+                        .iter()
+                        .map(hex::encode)
+                        .collect(),
+                )
+            })? {
             Some(account) => {
                 let storage_root = H256(
                     Rlp::new(&account)
@@ -136,10 +150,25 @@ impl<const SYNC_COMMITTEE_SIZE: usize, const EXECUTION_PAYLOAD_TREE_DEPTH: usize
                     Err(Error::AccountStorageRootMismatch(
                         account_update.account_storage_root,
                         storage_root,
+                        state_root,
+                        hex::encode(address.0),
+                        account_update
+                            .account_proof
+                            .iter()
+                            .map(hex::encode)
+                            .collect(),
                     ))
                 }
             }
-            None => Err(Error::AccountNotFound(state_root, address.clone())),
+            None => Err(Error::AccountNotFound(
+                state_root,
+                hex::encode(address.0),
+                account_update
+                    .account_proof
+                    .iter()
+                    .map(hex::encode)
+                    .collect(),
+            )),
         }
     }
 
@@ -879,7 +908,29 @@ fn trim_left_zero(value: &[u8]) -> &[u8] {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use hex_literal::hex;
     use time::{macros::datetime, OffsetDateTime};
+
+    #[test]
+    fn test_verify_account_storage() {
+        let client_state = ClientState::<0, 0>::default();
+        let account_proof = decode_eip1184_rlp_proof(
+            hex!("f901fff90191a05844e303fa8db3fa31c729db25d9b593367f853b4cbcb1a91fc85eda11e16617a09bb111cd80eee4c6ae6af0d01422ae82fccfa80d0267c4c8d525bc7f2b6233afa0323230228b1ba9b7eb88084b6d1ed9b75813a2da2d5ff0df9067335f5f55444ca0bfca1461a76f96944aa00afff03dc8de770275fbbe360f6ee03b0fe0ce902fd8a04c7579812e09de2b1aa746b0a047d357e898e9d634ac185d7e9d25b3d2336ab3808080a0c7de43d788c5228ebde29b62cb0f9b9eb10c0cb9b1078d6a51f768e0cdf296d6a0b8ad2523a3d1fdf33b627f598622775508297710e3623de115f2174c7f5727dfa023910890abfb016861bb7916cb555add80e552f118c0f1b93ec7d26798976f1da077153f3a45bebfb8b6709bd52e71d0993e9ecfd4e425204e258e5e5ac775ee73a01b42efb18b5af3defc59ba21f68965c5a28c716e109df937d216a2041fee4770a06b4b8f8ad0ae7588581c191bf177d5020fcc0f9152123cd26b3acf4e3469744280a0b4ec201ec80c64cefbe351f2febea48eb21c0d65d3e1c868178ece65e3d63ff480f869a0346090ccaa6fa9fa12360268a84aaba21af051a53bfdc84493350c840f61b79eb846f8440180a0d70e9391a3dd508a60195d2a5e12fb2f7e49582f9ce2c12477299377ccfadaada073092abb9be4a3fa206fd43699af07ff9d4278c27693f013fceb7780f3654c09").to_vec()
+        ).unwrap();
+        let res = client_state.verify_account_storage(
+            H256(hex!(
+                "48b7747ba1094684d9197bbaa5dcb134587d23e493fb53a29e400c50e50f5147"
+            )),
+            &Address(hex!("ff77D90D6aA12db33d3Ba50A34fB25401f6e4c4F")),
+            &AccountUpdateInfo {
+                account_proof,
+                account_storage_root: H256(hex!(
+                    "d70e9391a3dd508a60195d2a5e12fb2f7e49582f9ce2c12477299377ccfadaad"
+                )),
+            },
+        );
+        assert!(res.is_ok(), "{:?}", res);
+    }
 
     #[test]
     fn test_trusting_period_validation() {
