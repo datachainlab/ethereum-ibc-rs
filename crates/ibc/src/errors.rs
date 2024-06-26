@@ -36,8 +36,6 @@ pub enum Error {
     InvalidProofFormatError(String),
     /// rlp decode error: {0}
     RLPDecodeError(rlp::DecoderError),
-    /// account not found: state_root={0} address={1} account_proof={2:?}
-    AccountNotFound(H256, String, Vec<String>),
     /// account storage root mismatch: expected={0} actual={1} state_root={2} address={3} account_proof={4:?}
     AccountStorageRootMismatch(H256, H256, H256, String, Vec<String>),
     /// invalid account storage root: {0:?}
