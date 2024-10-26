@@ -11,7 +11,7 @@ use ethereum_consensus::types::{H256, U64};
 use ethereum_ibc_proto::ibc::core::client::v1::Height as ProtoHeight;
 use ethereum_ibc_proto::ibc::lightclients::ethereum::v1::{
     AccountUpdate as ProtoAccountUpdate, BeaconBlockHeader as ProtoBeaconBlockHeader,
-    ExecutionUpdate as ProtoExecutionUpdate, LightClientUpdate as ProtoLightClientUpdate,
+    ConsensusUpdate as ProtoConsensusUpdate, ExecutionUpdate as ProtoExecutionUpdate,
     SyncAggregate as ProtoSyncAggregate, SyncCommittee as ProtoSyncCommittee,
     TrustedSyncCommittee as ProtoTrustedSyncCommittee,
 };
@@ -303,11 +303,11 @@ pub(crate) fn convert_proto_sync_aggregate<const SYNC_COMMITTEE_SIZE: usize>(
 
 pub(crate) fn convert_consensus_update_to_proto<const SYNC_COMMITTEE_SIZE: usize>(
     consensus_update: ConsensusUpdateInfo<SYNC_COMMITTEE_SIZE>,
-) -> ProtoLightClientUpdate {
+) -> ProtoConsensusUpdate {
     let finalized_beacon_header_branch = consensus_update.finalized_beacon_header_branch();
     let sync_aggregate = consensus_update.sync_aggregate.clone();
 
-    ProtoLightClientUpdate {
+    ProtoConsensusUpdate {
         attested_header: Some(convert_header_to_proto(&consensus_update.attested_header)),
         next_sync_committee: consensus_update.next_sync_committee.clone().map(|c| {
             ProtoSyncCommittee {
@@ -339,7 +339,7 @@ pub(crate) fn convert_consensus_update_to_proto<const SYNC_COMMITTEE_SIZE: usize
 }
 
 pub(crate) fn convert_proto_to_consensus_update<const SYNC_COMMITTEE_SIZE: usize>(
-    consensus_update: ProtoLightClientUpdate,
+    consensus_update: ProtoConsensusUpdate,
 ) -> Result<ConsensusUpdateInfo<SYNC_COMMITTEE_SIZE>, Error> {
     let attested_header = convert_proto_to_header(
         consensus_update

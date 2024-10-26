@@ -60,7 +60,7 @@ pub struct Header {
     #[prost(message, optional, tag = "1")]
     pub trusted_sync_committee: ::core::option::Option<TrustedSyncCommittee>,
     #[prost(message, optional, tag = "2")]
-    pub consensus_update: ::core::option::Option<LightClientUpdate>,
+    pub consensus_update: ::core::option::Option<ConsensusUpdate>,
     #[prost(message, optional, tag = "3")]
     pub execution_update: ::core::option::Option<ExecutionUpdate>,
     #[prost(message, optional, tag = "4")]
@@ -107,7 +107,7 @@ pub struct Fork {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct LightClientUpdate {
+pub struct ConsensusUpdate {
     #[prost(message, optional, tag = "1")]
     pub attested_header: ::core::option::Option<BeaconBlockHeader>,
     #[prost(message, optional, tag = "2")]
@@ -189,9 +189,9 @@ pub struct FinalizedHeaderMisbehaviour {
     #[prost(message, optional, tag = "2")]
     pub trusted_sync_committee: ::core::option::Option<TrustedSyncCommittee>,
     #[prost(message, optional, tag = "3")]
-    pub consensus_update_1: ::core::option::Option<LightClientUpdate>,
+    pub consensus_update_1: ::core::option::Option<ConsensusUpdate>,
     #[prost(message, optional, tag = "4")]
-    pub consensus_update_2: ::core::option::Option<LightClientUpdate>,
+    pub consensus_update_2: ::core::option::Option<ConsensusUpdate>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -201,7 +201,7 @@ pub struct NextSyncCommitteeMisbehaviour {
     #[prost(message, optional, tag = "2")]
     pub trusted_sync_committee: ::core::option::Option<TrustedSyncCommittee>,
     #[prost(message, optional, tag = "3")]
-    pub consensus_update_1: ::core::option::Option<LightClientUpdate>,
+    pub consensus_update_1: ::core::option::Option<ConsensusUpdate>,
     #[prost(message, optional, tag = "4")]
-    pub consensus_update_2: ::core::option::Option<LightClientUpdate>,
+    pub consensus_update_2: ::core::option::Option<ConsensusUpdate>,
 }
