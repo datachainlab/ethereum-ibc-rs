@@ -1,13 +1,13 @@
 use crate::commitment::decode_eip1184_rlp_proof;
 use crate::errors::Error;
 use crate::internal_prelude::*;
-use crate::update::{
-    new_consensus_update, ConsensusUpdateInfo, ExecutionUpdateInfo, LightClientUpdate,
-};
-use ethereum_consensus::beacon::BeaconBlockHeader;
+use ethereum_consensus::beacon::{BeaconBlockHeader, Slot};
 use ethereum_consensus::bls::{PublicKey, Signature};
-use ethereum_consensus::sync_protocol::{SyncAggregate, SyncCommittee};
-use ethereum_consensus::types::H256;
+use ethereum_consensus::sync_protocol::{
+    SyncAggregate, SyncCommittee, EXECUTION_PAYLOAD_DEPTH, FINALIZED_ROOT_DEPTH,
+    NEXT_SYNC_COMMITTEE_DEPTH,
+};
+use ethereum_consensus::types::{H256, U64};
 use ethereum_ibc_proto::ibc::core::client::v1::Height as ProtoHeight;
 use ethereum_ibc_proto::ibc::lightclients::ethereum::v1::{
     AccountUpdate as ProtoAccountUpdate, BeaconBlockHeader as ProtoBeaconBlockHeader,
@@ -15,9 +15,96 @@ use ethereum_ibc_proto::ibc::lightclients::ethereum::v1::{
     SyncAggregate as ProtoSyncAggregate, SyncCommittee as ProtoSyncCommittee,
     TrustedSyncCommittee as ProtoTrustedSyncCommittee,
 };
-use ethereum_light_client_verifier::updates::ConsensusUpdate;
+use ethereum_light_client_verifier::updates::{ConsensusUpdate, ExecutionUpdate};
 use ibc::Height;
 use ssz_rs::{Bitvector, Deserialize, Vector};
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct ConsensusUpdateInfo<const SYNC_COMMITTEE_SIZE: usize> {
+    /// Header attested to by the sync committee
+    pub attested_header: BeaconBlockHeader,
+    /// Next sync committee contained in `attested_header.state_root`
+    /// 0: sync committee
+    /// 1: branch indicating the next sync committee in the tree corresponding to `attested_header.state_root`
+    pub next_sync_committee: Option<(
+        SyncCommittee<SYNC_COMMITTEE_SIZE>,
+        [H256; NEXT_SYNC_COMMITTEE_DEPTH],
+    )>,
+    /// Finalized header contained in `attested_header.state_root`
+    /// 0: header
+    /// 1. branch indicating the header in the tree corresponding to `attested_header.state_root`
+    pub finalized_header: (BeaconBlockHeader, [H256; FINALIZED_ROOT_DEPTH]),
+    /// Sync committee aggregate signature
+    pub sync_aggregate: SyncAggregate<SYNC_COMMITTEE_SIZE>,
+    /// Slot at which the aggregate signature was created (untrusted)
+    pub signature_slot: Slot,
+    /// Execution payload contained in the finalized beacon block's body
+    pub finalized_execution_root: H256,
+    /// Execution payload branch indicating the payload in the tree corresponding to the finalized block's body
+    pub finalized_execution_branch: [H256; EXECUTION_PAYLOAD_DEPTH],
+}
+
+impl<const SYNC_COMMITTEE_SIZE: usize> ConsensusUpdate<SYNC_COMMITTEE_SIZE>
+    for ConsensusUpdateInfo<SYNC_COMMITTEE_SIZE>
+{
+    fn attested_beacon_header(&self) -> &BeaconBlockHeader {
+        &self.attested_header
+    }
+    fn next_sync_committee(&self) -> Option<&SyncCommittee<SYNC_COMMITTEE_SIZE>> {
+        self.next_sync_committee.as_ref().map(|c| &c.0)
+    }
+    fn next_sync_committee_branch(&self) -> Option<[H256; NEXT_SYNC_COMMITTEE_DEPTH]> {
+        self.next_sync_committee.as_ref().map(|c| c.1.clone())
+    }
+    fn finalized_beacon_header(&self) -> &BeaconBlockHeader {
+        &self.finalized_header.0
+    }
+    fn finalized_beacon_header_branch(&self) -> [H256; FINALIZED_ROOT_DEPTH] {
+        self.finalized_header.1.clone()
+    }
+    fn finalized_execution_root(&self) -> H256 {
+        self.finalized_execution_root.clone()
+    }
+    fn finalized_execution_branch(&self) -> [H256; EXECUTION_PAYLOAD_DEPTH] {
+        self.finalized_execution_branch.clone()
+    }
+    fn sync_aggregate(&self) -> &SyncAggregate<SYNC_COMMITTEE_SIZE> {
+        &self.sync_aggregate
+    }
+    fn signature_slot(&self) -> Slot {
+        self.signature_slot
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct ExecutionUpdateInfo {
+    /// State root of the execution payload
+    pub state_root: H256,
+    /// Branch indicating the state root in the tree corresponding to the execution payload
+    pub state_root_branch: Vec<H256>,
+    /// Block number of the execution payload
+    pub block_number: U64,
+    /// Branch indicating the block number in the tree corresponding to the execution payload
+    pub block_number_branch: Vec<H256>,
+}
+
+impl ExecutionUpdate for ExecutionUpdateInfo {
+    fn state_root(&self) -> H256 {
+        self.state_root.clone()
+    }
+
+    fn state_root_branch(&self) -> Vec<H256> {
+        self.state_root_branch.clone()
+    }
+
+    fn block_number(&self) -> U64 {
+        self.block_number
+    }
+
+    fn block_number_branch(&self) -> Vec<H256> {
+        self.block_number_branch.clone()
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct TrustedSyncCommittee<const SYNC_COMMITTEE_SIZE: usize> {
@@ -218,27 +305,23 @@ pub(crate) fn convert_consensus_update_to_proto<const SYNC_COMMITTEE_SIZE: usize
     consensus_update: ConsensusUpdateInfo<SYNC_COMMITTEE_SIZE>,
 ) -> ProtoLightClientUpdate {
     let finalized_beacon_header_branch = consensus_update.finalized_beacon_header_branch();
-    let sync_aggregate = consensus_update.light_client_update.sync_aggregate.clone();
-    let signature_slot = consensus_update.signature_slot();
-    let light_client_update = consensus_update.light_client_update;
+    let sync_aggregate = consensus_update.sync_aggregate.clone();
 
     ProtoLightClientUpdate {
-        attested_header: Some(convert_header_to_proto(
-            &light_client_update.attested_header,
-        )),
-        next_sync_committee: light_client_update.next_sync_committee.clone().map(|c| {
+        attested_header: Some(convert_header_to_proto(&consensus_update.attested_header)),
+        next_sync_committee: consensus_update.next_sync_committee.clone().map(|c| {
             ProtoSyncCommittee {
                 pubkeys: c.0.pubkeys.iter().map(|pk| pk.to_vec()).collect(),
                 aggregate_pubkey: c.0.aggregate_pubkey.to_vec(),
             }
         }),
-        next_sync_committee_branch: light_client_update
+        next_sync_committee_branch: consensus_update
             .next_sync_committee
             .map_or(Vec::new(), |(_, branch)| {
                 branch.into_iter().map(|n| n.as_bytes().to_vec()).collect()
             }),
         finalized_header: Some(convert_header_to_proto(
-            &light_client_update.finalized_header.0,
+            &consensus_update.finalized_header.0,
         )),
         finalized_header_branch: finalized_beacon_header_branch
             .into_iter()
@@ -251,7 +334,7 @@ pub(crate) fn convert_consensus_update_to_proto<const SYNC_COMMITTEE_SIZE: usize
             .map(|n| n.as_bytes().to_vec())
             .collect(),
         sync_aggregate: Some(convert_sync_aggregate_to_proto(sync_aggregate)),
-        signature_slot: signature_slot.into(),
+        signature_slot: consensus_update.signature_slot.into(),
     }
 }
 
@@ -271,7 +354,16 @@ pub(crate) fn convert_proto_to_consensus_update<const SYNC_COMMITTEE_SIZE: usize
             .ok_or(Error::proto_missing("finalized_header"))?,
     )?;
 
-    let light_client_update = LightClientUpdate {
+    let mut finalized_execution_branch: [H256; EXECUTION_PAYLOAD_DEPTH] = Default::default();
+    finalized_execution_branch.clone_from_slice(
+        consensus_update
+            .finalized_execution_branch
+            .into_iter()
+            .map(|b| H256::from_slice(&b))
+            .collect::<Vec<H256>>()
+            .as_slice(),
+    );
+    let consensus_update = ConsensusUpdateInfo {
         attested_header,
         next_sync_committee: if consensus_update.next_sync_committee.is_none()
             || consensus_update
@@ -316,17 +408,10 @@ pub(crate) fn convert_proto_to_consensus_update<const SYNC_COMMITTEE_SIZE: usize
                 .ok_or(Error::proto_missing("sync_aggregate"))?,
         )?,
         signature_slot: consensus_update.signature_slot.into(),
+        finalized_execution_root: H256::from_slice(&consensus_update.finalized_execution_root),
+        finalized_execution_branch,
     };
-
-    Ok(new_consensus_update(
-        light_client_update,
-        H256::from_slice(&consensus_update.finalized_execution_root),
-        consensus_update
-            .finalized_execution_branch
-            .into_iter()
-            .map(|n| H256::from_slice(&n))
-            .collect(),
-    ))
+    Ok(consensus_update)
 }
 
 pub(crate) fn decode_branch<const N: usize>(bz: Vec<Vec<u8>>) -> [H256; N]

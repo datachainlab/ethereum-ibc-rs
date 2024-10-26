@@ -4,9 +4,8 @@ use crate::misbehaviour::Misbehaviour;
 use crate::types::{
     convert_consensus_update_to_proto, convert_execution_update_to_proto,
     convert_proto_to_consensus_update, convert_proto_to_execution_update, AccountUpdateInfo,
-    TrustedSyncCommittee,
+    ConsensusUpdateInfo, ExecutionUpdateInfo, TrustedSyncCommittee,
 };
-use crate::update::{ConsensusUpdateInfo, ExecutionUpdateInfo};
 use bytes::Buf;
 use ethereum_ibc_proto::ibc::lightclients::ethereum::v1::Header as RawHeader;
 use ibc::core::ics02_client::error::ClientError;

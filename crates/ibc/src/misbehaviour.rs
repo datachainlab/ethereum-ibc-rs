@@ -1,9 +1,9 @@
 use crate::{
     errors::Error,
     types::{
-        convert_consensus_update_to_proto, convert_proto_to_consensus_update, TrustedSyncCommittee,
+        convert_consensus_update_to_proto, convert_proto_to_consensus_update, ConsensusUpdateInfo,
+        TrustedSyncCommittee,
     },
-    update::ConsensusUpdateInfo,
 };
 use alloc::string::ToString;
 use bytes::Buf;
