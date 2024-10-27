@@ -3,10 +3,7 @@ use crate::errors::Error;
 use crate::internal_prelude::*;
 use ethereum_consensus::beacon::{BeaconBlockHeader, Slot};
 use ethereum_consensus::bls::{PublicKey, Signature};
-use ethereum_consensus::sync_protocol::{
-    SyncAggregate, SyncCommittee, EXECUTION_PAYLOAD_DEPTH, FINALIZED_ROOT_DEPTH,
-    NEXT_SYNC_COMMITTEE_DEPTH,
-};
+use ethereum_consensus::sync_protocol::{SyncAggregate, SyncCommittee};
 use ethereum_consensus::types::{H256, U64};
 use ethereum_ibc_proto::ibc::core::client::v1::Height as ProtoHeight;
 use ethereum_ibc_proto::ibc::lightclients::ethereum::v1::{
@@ -26,14 +23,11 @@ pub struct ConsensusUpdateInfo<const SYNC_COMMITTEE_SIZE: usize> {
     /// Next sync committee contained in `attested_header.state_root`
     /// 0: sync committee
     /// 1: branch indicating the next sync committee in the tree corresponding to `attested_header.state_root`
-    pub next_sync_committee: Option<(
-        SyncCommittee<SYNC_COMMITTEE_SIZE>,
-        [H256; NEXT_SYNC_COMMITTEE_DEPTH],
-    )>,
+    pub next_sync_committee: Option<(SyncCommittee<SYNC_COMMITTEE_SIZE>, Vec<H256>)>,
     /// Finalized header contained in `attested_header.state_root`
     /// 0: header
     /// 1. branch indicating the header in the tree corresponding to `attested_header.state_root`
-    pub finalized_header: (BeaconBlockHeader, [H256; FINALIZED_ROOT_DEPTH]),
+    pub finalized_header: (BeaconBlockHeader, Vec<H256>),
     /// Sync committee aggregate signature
     pub sync_aggregate: SyncAggregate<SYNC_COMMITTEE_SIZE>,
     /// Slot at which the aggregate signature was created (untrusted)
@@ -41,7 +35,7 @@ pub struct ConsensusUpdateInfo<const SYNC_COMMITTEE_SIZE: usize> {
     /// Execution payload contained in the finalized beacon block's body
     pub finalized_execution_root: H256,
     /// Execution payload branch indicating the payload in the tree corresponding to the finalized block's body
-    pub finalized_execution_branch: [H256; EXECUTION_PAYLOAD_DEPTH],
+    pub finalized_execution_branch: Vec<H256>,
 }
 
 impl<const SYNC_COMMITTEE_SIZE: usize> ConsensusUpdate<SYNC_COMMITTEE_SIZE>
@@ -53,20 +47,20 @@ impl<const SYNC_COMMITTEE_SIZE: usize> ConsensusUpdate<SYNC_COMMITTEE_SIZE>
     fn next_sync_committee(&self) -> Option<&SyncCommittee<SYNC_COMMITTEE_SIZE>> {
         self.next_sync_committee.as_ref().map(|c| &c.0)
     }
-    fn next_sync_committee_branch(&self) -> Option<[H256; NEXT_SYNC_COMMITTEE_DEPTH]> {
-        self.next_sync_committee.as_ref().map(|c| c.1)
+    fn next_sync_committee_branch(&self) -> Option<Vec<H256>> {
+        self.next_sync_committee.as_ref().map(|c| c.1.to_vec())
     }
     fn finalized_beacon_header(&self) -> &BeaconBlockHeader {
         &self.finalized_header.0
     }
-    fn finalized_beacon_header_branch(&self) -> [H256; FINALIZED_ROOT_DEPTH] {
-        self.finalized_header.1
+    fn finalized_beacon_header_branch(&self) -> Vec<H256> {
+        self.finalized_header.1.to_vec()
     }
     fn finalized_execution_root(&self) -> H256 {
         self.finalized_execution_root
     }
-    fn finalized_execution_branch(&self) -> [H256; EXECUTION_PAYLOAD_DEPTH] {
-        self.finalized_execution_branch
+    fn finalized_execution_branch(&self) -> Vec<H256> {
+        self.finalized_execution_branch.to_vec()
     }
     fn sync_aggregate(&self) -> &SyncAggregate<SYNC_COMMITTEE_SIZE> {
         &self.sync_aggregate
@@ -354,15 +348,11 @@ pub(crate) fn convert_proto_to_consensus_update<const SYNC_COMMITTEE_SIZE: usize
             .ok_or(Error::proto_missing("finalized_header"))?,
     )?;
 
-    let mut finalized_execution_branch: [H256; EXECUTION_PAYLOAD_DEPTH] = Default::default();
-    finalized_execution_branch.clone_from_slice(
-        consensus_update
-            .finalized_execution_branch
-            .into_iter()
-            .map(|b| H256::from_slice(&b))
-            .collect::<Vec<H256>>()
-            .as_slice(),
-    );
+    let finalized_execution_branch = consensus_update
+        .finalized_execution_branch
+        .into_iter()
+        .map(|b| H256::from_slice(&b))
+        .collect::<Vec<H256>>();
     let consensus_update = ConsensusUpdateInfo {
         attested_header,
         next_sync_committee: if consensus_update.next_sync_committee.is_none()
@@ -414,12 +404,6 @@ pub(crate) fn convert_proto_to_consensus_update<const SYNC_COMMITTEE_SIZE: usize
     Ok(consensus_update)
 }
 
-pub(crate) fn decode_branch<const N: usize>(bz: Vec<Vec<u8>>) -> [H256; N]
-where
-    [H256; N]: Default,
-{
-    let mut array: [H256; N] = Default::default();
-    let v: Vec<H256> = bz.into_iter().map(|b| H256::from_slice(&b)).collect();
-    array.clone_from_slice(v.as_slice());
-    array
+pub(crate) fn decode_branch(bz: Vec<Vec<u8>>) -> Vec<H256> {
+    bz.into_iter().map(|b| H256::from_slice(&b)).collect()
 }

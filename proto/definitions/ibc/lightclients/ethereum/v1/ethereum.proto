@@ -63,6 +63,16 @@ message Fraction {
 message Fork {
   bytes version = 1;
   uint64 epoch = 2;
+  ForkSpec spec = 3;
+}
+
+message ForkSpec {
+  uint32 finalized_root_gindex = 1;
+  uint32 current_sync_committee_gindex = 2;
+  uint32 next_sync_committee_gindex = 3;
+  uint32 execution_payload_gindex = 4;
+  uint32 execution_payload_state_root_gindex = 5;
+  uint32 execution_payload_block_number_gindex = 6;
 }
 
 message ConsensusUpdate {
