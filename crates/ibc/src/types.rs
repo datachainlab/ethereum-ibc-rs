@@ -54,19 +54,19 @@ impl<const SYNC_COMMITTEE_SIZE: usize> ConsensusUpdate<SYNC_COMMITTEE_SIZE>
         self.next_sync_committee.as_ref().map(|c| &c.0)
     }
     fn next_sync_committee_branch(&self) -> Option<[H256; NEXT_SYNC_COMMITTEE_DEPTH]> {
-        self.next_sync_committee.as_ref().map(|c| c.1.clone())
+        self.next_sync_committee.as_ref().map(|c| c.1)
     }
     fn finalized_beacon_header(&self) -> &BeaconBlockHeader {
         &self.finalized_header.0
     }
     fn finalized_beacon_header_branch(&self) -> [H256; FINALIZED_ROOT_DEPTH] {
-        self.finalized_header.1.clone()
+        self.finalized_header.1
     }
     fn finalized_execution_root(&self) -> H256 {
-        self.finalized_execution_root.clone()
+        self.finalized_execution_root
     }
     fn finalized_execution_branch(&self) -> [H256; EXECUTION_PAYLOAD_DEPTH] {
-        self.finalized_execution_branch.clone()
+        self.finalized_execution_branch
     }
     fn sync_aggregate(&self) -> &SyncAggregate<SYNC_COMMITTEE_SIZE> {
         &self.sync_aggregate
@@ -90,7 +90,7 @@ pub struct ExecutionUpdateInfo {
 
 impl ExecutionUpdate for ExecutionUpdateInfo {
     fn state_root(&self) -> H256 {
-        self.state_root.clone()
+        self.state_root
     }
 
     fn state_root_branch(&self) -> Vec<H256> {
