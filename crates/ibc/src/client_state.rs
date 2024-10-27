@@ -12,9 +12,7 @@ use ethereum_consensus::context::ChainContext;
 use ethereum_consensus::fork::{ForkParameter, ForkParameters};
 use ethereum_consensus::types::{Address, H256, U64};
 use ethereum_ibc_proto::ibc::lightclients::ethereum::v1::{ClientState as RawClientState, Fork};
-use ethereum_light_client_verifier::consensus::{
-    CurrentNextSyncProtocolVerifier, SyncProtocolVerifier,
-};
+use ethereum_light_client_verifier::consensus::SyncProtocolVerifier;
 use ethereum_light_client_verifier::context::{
     ConsensusVerificationContext, Fraction, LightClientContext,
 };
@@ -65,7 +63,7 @@ pub struct ClientState<const SYNC_COMMITTEE_SIZE: usize, const EXECUTION_PAYLOAD
 
     /// Verifier
     #[serde(skip)]
-    pub consensus_verifier: CurrentNextSyncProtocolVerifier<
+    pub consensus_verifier: SyncProtocolVerifier<
         SYNC_COMMITTEE_SIZE,
         EXECUTION_PAYLOAD_TREE_DEPTH,
         TrustedConsensusState<SYNC_COMMITTEE_SIZE>,
@@ -95,8 +93,6 @@ impl<const SYNC_COMMITTEE_SIZE: usize, const EXECUTION_PAYLOAD_TREE_DEPTH: usize
                 .unwrap()
                 .unix_timestamp() as u64,
         );
-        let current_slot = (current_timestamp - self.genesis_time) / self.seconds_per_slot
-            + self.fork_parameters.genesis_slot();
         LightClientContext::new(
             self.fork_parameters.clone(),
             self.seconds_per_slot,
@@ -106,7 +102,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize, const EXECUTION_PAYLOAD_TREE_DEPTH: usize
             self.genesis_validators_root,
             self.min_sync_committee_participants.0 as usize,
             self.trust_level.clone(),
-            move || current_slot,
+            current_timestamp,
         )
     }
 

@@ -9,7 +9,7 @@ use ethereum_consensus::{
     compute::{compute_sync_committee_period_at_slot, compute_timestamp_at_slot},
     context::ChainContext,
 };
-use ethereum_light_client_verifier::state::SyncCommitteeView;
+use ethereum_light_client_verifier::state::LightClientStoreReader;
 use ibc::timestamp::Timestamp;
 
 pub fn apply_updates<
