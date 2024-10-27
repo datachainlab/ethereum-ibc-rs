@@ -5,7 +5,7 @@ use ethereum_ibc_proto::{
     google::protobuf::Timestamp as ProtoTimestamp,
     ibc::lightclients::ethereum::v1::ConsensusState as RawConsensusState,
 };
-use ethereum_light_client_verifier::state::SyncCommitteeView;
+use ethereum_light_client_verifier::state::LightClientStoreReader;
 use ibc::{
     core::{
         ics02_client::{
@@ -228,7 +228,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize> TrustedConsensusState<SYNC_COMMITTEE_SIZE
     }
 }
 
-impl<const SYNC_COMMITTEE_SIZE: usize> SyncCommitteeView<SYNC_COMMITTEE_SIZE>
+impl<const SYNC_COMMITTEE_SIZE: usize> LightClientStoreReader<SYNC_COMMITTEE_SIZE>
     for TrustedConsensusState<SYNC_COMMITTEE_SIZE>
 {
     fn current_slot(&self) -> Slot {

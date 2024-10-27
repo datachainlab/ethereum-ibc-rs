@@ -19,3 +19,4 @@ schemars    = { version = "0.8", optional = true }
 [features]
 default     = ["std"]
 std         = []
+json-schema = []
