@@ -12,25 +12,15 @@ use ethereum_consensus::{
 use ethereum_light_client_verifier::state::LightClientStoreReader;
 use ibc::timestamp::Timestamp;
 
-pub fn apply_updates<
-    const SYNC_COMMITTEE_SIZE: usize,
-    const EXECUTION_PAYLOAD_TREE_DEPTH: usize,
-    C: ChainContext,
->(
+pub fn apply_updates<const SYNC_COMMITTEE_SIZE: usize, C: ChainContext>(
     ctx: &C,
-    client_state: &ClientState<SYNC_COMMITTEE_SIZE, EXECUTION_PAYLOAD_TREE_DEPTH>,
+    client_state: &ClientState<SYNC_COMMITTEE_SIZE>,
     trusted_consensus_state: &TrustedConsensusState<SYNC_COMMITTEE_SIZE>,
     consensus_update: ConsensusUpdateInfo<SYNC_COMMITTEE_SIZE>,
     execution_update: ExecutionUpdateInfo,
     account_update: AccountUpdateInfo,
     timestamp: Timestamp,
-) -> Result<
-    (
-        ClientState<SYNC_COMMITTEE_SIZE, EXECUTION_PAYLOAD_TREE_DEPTH>,
-        ConsensusState,
-    ),
-    Error,
-> {
+) -> Result<(ClientState<SYNC_COMMITTEE_SIZE>, ConsensusState), Error> {
     let store_period =
         compute_sync_committee_period_at_slot(ctx, trusted_consensus_state.current_slot());
     let update_slot = consensus_update.finalized_header.0.slot;

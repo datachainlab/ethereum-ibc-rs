@@ -104,6 +104,24 @@ pub struct Fork {
     pub version: ::prost::alloc::vec::Vec<u8>,
     #[prost(uint64, tag = "2")]
     pub epoch: u64,
+    #[prost(message, optional, tag = "3")]
+    pub spec: ::core::option::Option<ForkSpec>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ForkSpec {
+    #[prost(uint32, tag = "1")]
+    pub finalized_root_gindex: u32,
+    #[prost(uint32, tag = "2")]
+    pub current_sync_committee_gindex: u32,
+    #[prost(uint32, tag = "3")]
+    pub next_sync_committee_gindex: u32,
+    #[prost(uint32, tag = "4")]
+    pub execution_payload_gindex: u32,
+    #[prost(uint32, tag = "5")]
+    pub execution_payload_state_root_gindex: u32,
+    #[prost(uint32, tag = "6")]
+    pub execution_payload_block_number_gindex: u32,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
