@@ -43,26 +43,24 @@ pub fn apply_updates<const SYNC_COMMITTEE_SIZE: usize, C: ChainContext>(
             next_sync_committee: trusted_consensus_state.state.next_sync_committee.clone(),
         }
     } else if store_period + 1 == update_period {
-        let next_sync_committee = consensus_update
-            .next_sync_committee
-            .as_ref()
-            .map(|c| c.0.aggregate_pubkey.clone());
-        if next_sync_committee.is_none() {
+        if let Some((next_sync_committee, _)) = consensus_update.next_sync_committee {
+            ConsensusState {
+                slot: update_slot,
+                storage_root: account_update.account_storage_root.0.to_vec().into(),
+                timestamp: wrap_compute_timestamp_at_slot(ctx, update_slot)?,
+                // unwrap is safe because the consensus update validation has passed
+                current_sync_committee: trusted_consensus_state
+                    .next_sync_committee()
+                    .unwrap()
+                    .aggregate_pubkey
+                    .clone(),
+                next_sync_committee: next_sync_committee.aggregate_pubkey,
+            }
+        } else {
             return Err(Error::NoNextSyncCommitteeInConsensusUpdate(
                 store_period.into(),
                 update_period.into(),
             ));
-        }
-        ConsensusState {
-            slot: update_slot,
-            storage_root: account_update.account_storage_root.0.to_vec().into(),
-            timestamp: wrap_compute_timestamp_at_slot(ctx, update_slot)?,
-            current_sync_committee: trusted_consensus_state
-                .next_sync_committee()
-                .unwrap()
-                .aggregate_pubkey
-                .clone(),
-            next_sync_committee: next_sync_committee.unwrap(),
         }
     } else {
         // store_period + 1 < update_period
