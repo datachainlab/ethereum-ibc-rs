@@ -30,7 +30,7 @@ pub struct ConsensusState {
     /// aggregate public key of current sync committee
     pub current_sync_committee: PublicKey,
     /// aggregate public key of next sync committee
-    pub next_sync_committee: Option<PublicKey>,
+    pub next_sync_committee: PublicKey,
 }
 
 impl ConsensusState {
@@ -103,9 +103,11 @@ impl TryFrom<RawConsensusState> for ConsensusState {
 
     fn try_from(value: RawConsensusState) -> Result<Self, Self::Error> {
         let next_sync_committee = if value.next_sync_committee.is_empty() {
-            None
+            return Err(Self::Error::InvalidRawConsensusState {
+                reason: "next_sync_committee is empty".to_string(),
+            });
         } else {
-            Some(PublicKey::try_from(value.next_sync_committee)?)
+            PublicKey::try_from(value.next_sync_committee)?
         };
         Ok(Self {
             slot: value.slot.into(),
@@ -123,16 +125,12 @@ impl TryFrom<RawConsensusState> for ConsensusState {
 
 impl From<ConsensusState> for RawConsensusState {
     fn from(value: ConsensusState) -> Self {
-        let next_sync_committee = match value.next_sync_committee {
-            Some(next_sync_committee) => next_sync_committee.0.to_vec(),
-            None => Vec::new(),
-        };
         Self {
             slot: value.slot.into(),
             storage_root: value.storage_root.into_vec(),
             timestamp: Some(ibc_timestamp_to_proto_timestamp(value.timestamp)),
             current_sync_committee: value.current_sync_committee.to_vec(),
-            next_sync_committee,
+            next_sync_committee: value.next_sync_committee.to_vec(),
         }
     }
 }
@@ -203,28 +201,18 @@ impl<const SYNC_COMMITTEE_SIZE: usize> TrustedConsensusState<SYNC_COMMITTEE_SIZE
             };
         }
 
-        if let Some(next_sync_committee) = consensus_state.next_sync_committee.clone() {
-            if sync_committee.aggregate_pubkey == next_sync_committee {
-                Ok(Self {
-                    state: consensus_state,
-                    current_sync_committee: None,
-                    next_sync_committee: Some(sync_committee),
-                })
-            } else {
-                Err(Error::InvalidNextSyncCommitteeKeys(
-                    sync_committee.aggregate_pubkey,
-                    next_sync_committee,
-                ))
-            }
+        if sync_committee.aggregate_pubkey == consensus_state.next_sync_committee {
+            Ok(Self {
+                state: consensus_state,
+                current_sync_committee: None,
+                next_sync_committee: Some(sync_committee),
+            })
         } else {
-            Err(Error::NoNextSyncCommitteeInConsensusState)
+            Err(Error::InvalidNextSyncCommitteeKeys(
+                sync_committee.aggregate_pubkey,
+                consensus_state.next_sync_committee,
+            ))
         }
-    }
-}
-
-impl<const SYNC_COMMITTEE_SIZE: usize> TrustedConsensusState<SYNC_COMMITTEE_SIZE> {
-    pub fn current_sync_committee_aggregate_key(&self) -> PublicKey {
-        self.state.current_sync_committee.clone()
     }
 }
 
