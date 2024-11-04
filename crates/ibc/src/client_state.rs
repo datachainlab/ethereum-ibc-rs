@@ -382,8 +382,8 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
             self,
             &trusted_consensus_state,
             consensus_update,
-            execution_update,
-            account_update,
+            execution_update.block_number,
+            account_update.account_storage_root,
             timestamp,
         )?;
 

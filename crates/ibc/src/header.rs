@@ -125,3 +125,81 @@ impl<const SYNC_COMMITTEE_SIZE: usize> From<Header<SYNC_COMMITTEE_SIZE>> for IBC
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ethereum_consensus::context::ChainContext;
+    use ethereum_consensus::{config, types::U64};
+    use ethereum_light_client_verifier::{
+        consensus::test_utils::{gen_light_client_update_with_params, MockSyncCommitteeManager},
+        context::{Fraction, LightClientContext},
+        updates::ConsensusUpdateInfo as EthConsensusUpdateInfo,
+    };
+    use std::time::SystemTime;
+
+    #[test]
+    fn test_header_conversion() {
+        let scm = MockSyncCommitteeManager::<32>::new(1, 4);
+        let ctx = LightClientContext::new_with_config(
+            config::minimal::get_config(),
+            Default::default(),
+            Default::default(),
+            Fraction::new(2, 3),
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+                .into(),
+        );
+        let period_1 = U64(1) * ctx.slots_per_epoch() * ctx.epochs_per_sync_committee_period();
+
+        let current_sync_committee = scm.get_committee(1);
+        let base_signature_slot = period_1 + 11;
+        let base_attested_slot = base_signature_slot - 1;
+        let base_finalized_epoch = base_attested_slot / ctx.slots_per_epoch();
+        let dummy_execution_state_root = [1u8; 32].into();
+        let dummy_execution_block_number = 1;
+
+        let update_1 = gen_light_client_update_with_params::<32, _>(
+            &ctx,
+            base_signature_slot,
+            base_attested_slot,
+            base_finalized_epoch,
+            dummy_execution_state_root,
+            dummy_execution_block_number.into(),
+            current_sync_committee,
+            scm.get_committee(2),
+            32,
+        );
+        let update_1 = to_consensus_update_info(update_1);
+        let header = Header {
+            trusted_sync_committee: TrustedSyncCommittee {
+                height: ibc::Height::new(1, 1).unwrap(),
+                sync_committee: current_sync_committee.to_committee().clone(),
+                is_next: true,
+            },
+            consensus_update: update_1,
+            execution_update: ExecutionUpdateInfo::default(),
+            account_update: AccountUpdateInfo::default(),
+            timestamp: Timestamp::from_nanoseconds(1730729158 * 1_000_000_000).unwrap(),
+        };
+        let any = IBCAny::from(header.clone());
+        let decoded = Header::<32>::try_from(any).unwrap();
+        assert_eq!(header, decoded);
+    }
+
+    fn to_consensus_update_info<const SYNC_COMMITTEE_SIZE: usize>(
+        consensus_update: EthConsensusUpdateInfo<SYNC_COMMITTEE_SIZE>,
+    ) -> ConsensusUpdateInfo<SYNC_COMMITTEE_SIZE> {
+        ConsensusUpdateInfo {
+            attested_header: consensus_update.light_client_update.attested_header,
+            next_sync_committee: consensus_update.light_client_update.next_sync_committee,
+            finalized_header: consensus_update.light_client_update.finalized_header,
+            sync_aggregate: consensus_update.light_client_update.sync_aggregate,
+            signature_slot: consensus_update.light_client_update.signature_slot,
+            finalized_execution_root: consensus_update.finalized_execution_root,
+            finalized_execution_branch: consensus_update.finalized_execution_branch,
+        }
+    }
+}

@@ -1,5 +1,5 @@
 #![allow(clippy::result_large_err)]
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 extern crate alloc;
 
 pub mod client_state;

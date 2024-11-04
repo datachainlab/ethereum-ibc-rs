@@ -2,14 +2,14 @@ use crate::{
     client_state::ClientState,
     consensus_state::{ConsensusState, TrustedConsensusState},
     errors::Error,
-    types::{AccountUpdateInfo, ConsensusUpdateInfo, ExecutionUpdateInfo},
+    types::ConsensusUpdateInfo,
 };
 use ethereum_consensus::{
     beacon::Slot,
     compute::{compute_sync_committee_period_at_slot, compute_timestamp_at_slot},
     context::ChainContext,
+    types::{H256, U64},
 };
-use ethereum_light_client_verifier::state::LightClientStoreReader;
 use ibc::timestamp::Timestamp;
 
 pub fn apply_updates<const SYNC_COMMITTEE_SIZE: usize, C: ChainContext>(
@@ -17,12 +17,11 @@ pub fn apply_updates<const SYNC_COMMITTEE_SIZE: usize, C: ChainContext>(
     client_state: &ClientState<SYNC_COMMITTEE_SIZE>,
     trusted_consensus_state: &TrustedConsensusState<SYNC_COMMITTEE_SIZE>,
     consensus_update: ConsensusUpdateInfo<SYNC_COMMITTEE_SIZE>,
-    execution_update: ExecutionUpdateInfo,
-    account_update: AccountUpdateInfo,
+    block_number: U64,
+    account_storage_root: H256,
     timestamp: Timestamp,
 ) -> Result<(ClientState<SYNC_COMMITTEE_SIZE>, ConsensusState), Error> {
-    let store_period =
-        compute_sync_committee_period_at_slot(ctx, trusted_consensus_state.current_slot());
+    let store_period = trusted_consensus_state.current_period(ctx);
     let update_slot = consensus_update.finalized_header.0.slot;
     let update_period = compute_sync_committee_period_at_slot(ctx, update_slot);
     let timestamp = timestamp.into_tm_time().unwrap().unix_timestamp() as u64;
@@ -37,7 +36,7 @@ pub fn apply_updates<const SYNC_COMMITTEE_SIZE: usize, C: ChainContext>(
     let new_consensus_state = if store_period == update_period {
         ConsensusState {
             slot: update_slot,
-            storage_root: account_update.account_storage_root.0.to_vec().into(),
+            storage_root: account_storage_root.0.to_vec().into(),
             timestamp: wrap_compute_timestamp_at_slot(ctx, update_slot)?,
             current_sync_committee: trusted_consensus_state.state.current_sync_committee.clone(),
             next_sync_committee: trusted_consensus_state.state.next_sync_committee.clone(),
@@ -46,11 +45,12 @@ pub fn apply_updates<const SYNC_COMMITTEE_SIZE: usize, C: ChainContext>(
         if let Some((next_sync_committee, _)) = consensus_update.next_sync_committee {
             ConsensusState {
                 slot: update_slot,
-                storage_root: account_update.account_storage_root.0.to_vec().into(),
+                storage_root: account_storage_root.0.to_vec().into(),
                 timestamp: wrap_compute_timestamp_at_slot(ctx, update_slot)?,
                 // unwrap is safe because the consensus update validation has passed
                 current_sync_committee: trusted_consensus_state
-                    .next_sync_committee()
+                    .next_sync_committee
+                    .as_ref()
                     .unwrap()
                     .aggregate_pubkey
                     .clone(),
@@ -71,8 +71,8 @@ pub fn apply_updates<const SYNC_COMMITTEE_SIZE: usize, C: ChainContext>(
     if client_state.latest_slot < update_slot {
         new_client_state.latest_slot = update_slot;
     }
-    if client_state.latest_execution_block_number < execution_update.block_number {
-        new_client_state.latest_execution_block_number = execution_update.block_number;
+    if client_state.latest_execution_block_number < block_number {
+        new_client_state.latest_execution_block_number = block_number;
     }
     Ok((new_client_state, new_consensus_state))
 }

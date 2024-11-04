@@ -1,11 +1,17 @@
 use crate::errors::Error;
 use crate::internal_prelude::*;
-use ethereum_consensus::{beacon::Slot, bls::PublicKey, sync_protocol::SyncCommittee};
+use ethereum_consensus::{
+    beacon::Slot,
+    bls::PublicKey,
+    compute::compute_sync_committee_period_at_slot,
+    context::ChainContext,
+    sync_protocol::{SyncCommittee, SyncCommitteePeriod},
+};
 use ethereum_ibc_proto::{
     google::protobuf::Timestamp as ProtoTimestamp,
     ibc::lightclients::ethereum::v1::ConsensusState as RawConsensusState,
 };
-use ethereum_light_client_verifier::state::LightClientStoreReader;
+use ethereum_light_client_verifier::{state::LightClientStoreReader, updates::ConsensusUpdate};
 use ibc::{
     core::{
         ics02_client::{
@@ -214,25 +220,45 @@ impl<const SYNC_COMMITTEE_SIZE: usize> TrustedConsensusState<SYNC_COMMITTEE_SIZE
             ))
         }
     }
+
+    pub fn current_period<C: ChainContext>(&self, ctx: &C) -> SyncCommitteePeriod {
+        compute_sync_committee_period_at_slot(ctx, self.state.slot)
+    }
 }
 
 impl<const SYNC_COMMITTEE_SIZE: usize> LightClientStoreReader<SYNC_COMMITTEE_SIZE>
     for TrustedConsensusState<SYNC_COMMITTEE_SIZE>
 {
-    fn current_slot(&self) -> Slot {
-        self.state.slot
+    fn get_sync_committee<CC: ChainContext>(
+        &self,
+        ctx: &CC,
+        period: SyncCommitteePeriod,
+    ) -> Option<SyncCommittee<SYNC_COMMITTEE_SIZE>> {
+        let store_period = self.current_period(ctx);
+        if period == store_period {
+            self.current_sync_committee.clone()
+        } else if period == store_period + 1 {
+            self.next_sync_committee.clone()
+        } else {
+            None
+        }
     }
 
-    fn current_sync_committee(
+    fn ensure_relevant_update<CC: ChainContext, C: ConsensusUpdate<SYNC_COMMITTEE_SIZE>>(
         &self,
-    ) -> &ethereum_consensus::sync_protocol::SyncCommittee<SYNC_COMMITTEE_SIZE> {
-        self.current_sync_committee.as_ref().unwrap()
-    }
-
-    fn next_sync_committee(
-        &self,
-    ) -> Option<&ethereum_consensus::sync_protocol::SyncCommittee<SYNC_COMMITTEE_SIZE>> {
-        self.next_sync_committee.as_ref()
+        ctx: &CC,
+        update: &C,
+    ) -> Result<(), ethereum_light_client_verifier::errors::Error> {
+        update.ensure_consistent_update_period(ctx)?;
+        if self.state.slot >= update.finalized_beacon_header().slot {
+            Err(
+                ethereum_light_client_verifier::errors::Error::IrrelevantConsensusUpdates(
+                    "finalized header slot is not greater than current slot".to_string(),
+                ),
+            )
+        } else {
+            Ok(())
+        }
     }
 }
 
