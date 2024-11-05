@@ -30,10 +30,8 @@ pub struct ClientState {
         super::super::super::super::google::protobuf::Duration,
     >,
     #[prost(uint64, tag = "13")]
-    pub latest_slot: u64,
-    #[prost(uint64, tag = "14")]
     pub latest_execution_block_number: u64,
-    #[prost(message, optional, tag = "15")]
+    #[prost(message, optional, tag = "14")]
     pub frozen_height: ::core::option::Option<
         super::super::super::core::client::v1::Height,
     >,

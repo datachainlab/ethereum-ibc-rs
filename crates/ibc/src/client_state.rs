@@ -57,7 +57,6 @@ pub struct ClientState<const SYNC_COMMITTEE_SIZE: usize> {
     pub max_clock_drift: Duration,
 
     /// State
-    pub latest_slot: Slot,
     pub latest_execution_block_number: U64,
     pub frozen_height: Option<Height>,
 
@@ -269,8 +268,6 @@ impl<const SYNC_COMMITTEE_SIZE: usize> ClientState<SYNC_COMMITTEE_SIZE> {
             Err(Error::UninitializedClientStateField("trust_level"))
         } else if self.trusting_period == Duration::default() {
             Err(Error::UninitializedClientStateField("trusting_period"))
-        } else if self.latest_slot == Slot::default() {
-            Err(Error::UninitializedClientStateField("latest_slot"))
         } else if self.latest_execution_block_number == U64::default() {
             Err(Error::UninitializedClientStateField(
                 "latest_execution_block_number",
@@ -749,7 +746,6 @@ impl<const SYNC_COMMITTEE_SIZE: usize> TryFrom<RawClientState>
                 .ok_or(Error::NegativeMaxClockDrift)?
                 .try_into()
                 .map_err(|_| Error::NegativeMaxClockDrift)?,
-            latest_slot: value.latest_slot.into(),
             latest_execution_block_number: value.latest_execution_block_number.into(),
             frozen_height,
             consensus_verifier: Default::default(),
@@ -810,7 +806,6 @@ impl<const SYNC_COMMITTEE_SIZE: usize> From<ClientState<SYNC_COMMITTEE_SIZE>> fo
             }),
             trusting_period: Some(value.trusting_period.into()),
             max_clock_drift: Some(value.max_clock_drift.into()),
-            latest_slot: value.latest_slot.into(),
             latest_execution_block_number: value.latest_execution_block_number.into(),
             frozen_height: value.frozen_height.map(|h| ProtoHeight {
                 revision_number: h.revision_number(),

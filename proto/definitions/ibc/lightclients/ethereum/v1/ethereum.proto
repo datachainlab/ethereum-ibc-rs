@@ -22,9 +22,8 @@ message ClientState {
   google.protobuf.Duration trusting_period = 11;
   google.protobuf.Duration max_clock_drift = 12;
 
-  uint64 latest_slot = 13;
-  uint64 latest_execution_block_number = 14;
-  ibc.core.client.v1.Height frozen_height = 15;
+  uint64 latest_execution_block_number = 13;
+  ibc.core.client.v1.Height frozen_height = 14;
 }
 
 message ConsensusState {
