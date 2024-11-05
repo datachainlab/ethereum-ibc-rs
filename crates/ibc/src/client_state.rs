@@ -419,7 +419,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
 
         let cc = self.build_context(ctx);
         let trusted_consensus_state = TrustedConsensusState::new(
-            consensus_state,
+            consensus_state.clone(),
             misbehaviour.trusted_sync_committee.sync_committee,
             misbehaviour.trusted_sync_committee.is_next,
         )?;
@@ -427,6 +427,17 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
         self.consensus_verifier
             .validate_misbehaviour(&cc, &trusted_consensus_state, misbehaviour.data)
             .map_err(Error::VerificationError)?;
+
+        let host_timestamp = ctx
+            .host_timestamp()
+            .map_err(|e| ClientError::ClientSpecific {
+                description: e.to_string(),
+            })?;
+        validate_state_timestamp_within_trusting_period(
+            host_timestamp,
+            self.trusting_period,
+            consensus_state.timestamp,
+        )?;
 
         // found misbehaviour
         Ok(self
