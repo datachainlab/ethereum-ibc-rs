@@ -93,6 +93,8 @@ pub enum Error {
     ICS24(ValidationError),
     /// context error
     ContextError(ContextError),
+    /// zero timestamp error
+    ZeroTimestampError,
     /// timestamp overflow error: `{0}`
     TimestampOverflowError(TimestampOverflowError),
     /// parse timestamp error: `{0}`
