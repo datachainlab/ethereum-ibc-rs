@@ -66,19 +66,22 @@ impl<const SYNC_COMMITTEE_SIZE: usize> TryFrom<RawHeader> for Header<SYNC_COMMIT
         let account_update = value
             .account_update
             .ok_or(Error::proto_missing("account_update"))?;
-
+        let timestamp = Timestamp::from_nanoseconds(
+            value.timestamp.checked_mul(1_000_000_000).ok_or_else(|| {
+                Error::TimestampOverflowError(
+                    ibc::timestamp::TimestampOverflowError::TimestampOverflow,
+                )
+            })?,
+        )?;
+        if timestamp.into_datetime().is_none() {
+            return Err(Error::ZeroTimestampError);
+        }
         Ok(Self {
             trusted_sync_committee: trusted_sync_committee.try_into()?,
             consensus_update: convert_proto_to_consensus_update(consensus_update)?,
             execution_update: convert_proto_to_execution_update(execution_update),
             account_update: account_update.try_into()?,
-            timestamp: Timestamp::from_nanoseconds(
-                value.timestamp.checked_mul(1_000_000_000).ok_or_else(|| {
-                    Error::TimestampOverflowError(
-                        ibc::timestamp::TimestampOverflowError::TimestampOverflow,
-                    )
-                })?,
-            )?,
+            timestamp,
         })
     }
 }
@@ -161,7 +164,7 @@ mod tests {
         let dummy_execution_state_root = [1u8; 32].into();
         let dummy_execution_block_number = 1;
 
-        let update_1 = gen_light_client_update_with_params::<32, _>(
+        let update = gen_light_client_update_with_params::<32, _>(
             &ctx,
             base_signature_slot,
             base_attested_slot,
@@ -172,14 +175,14 @@ mod tests {
             scm.get_committee(2),
             32,
         );
-        let update_1 = to_consensus_update_info(update_1);
+        let update = to_consensus_update_info(update);
         let header = Header {
             trusted_sync_committee: TrustedSyncCommittee {
                 height: ibc::Height::new(1, 1).unwrap(),
                 sync_committee: current_sync_committee.to_committee().clone(),
                 is_next: true,
             },
-            consensus_update: update_1,
+            consensus_update: update.clone(),
             execution_update: ExecutionUpdateInfo::default(),
             account_update: AccountUpdateInfo::default(),
             timestamp: Timestamp::from_nanoseconds(1730729158 * 1_000_000_000).unwrap(),
@@ -187,6 +190,21 @@ mod tests {
         let any = IBCAny::from(header.clone());
         let decoded = Header::<32>::try_from(any).unwrap();
         assert_eq!(header, decoded);
+
+        let header = Header {
+            trusted_sync_committee: TrustedSyncCommittee {
+                height: ibc::Height::new(1, 1).unwrap(),
+                sync_committee: current_sync_committee.to_committee().clone(),
+                is_next: true,
+            },
+            consensus_update: update,
+            execution_update: ExecutionUpdateInfo::default(),
+            account_update: AccountUpdateInfo::default(),
+            timestamp: Timestamp::from_nanoseconds(0).unwrap(),
+        };
+        let any = IBCAny::from(header.clone());
+        let res = Header::<32>::try_from(any);
+        assert!(res.is_err());
     }
 
     fn to_consensus_update_info<const SYNC_COMMITTEE_SIZE: usize>(
