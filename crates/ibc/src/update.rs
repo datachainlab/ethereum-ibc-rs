@@ -69,9 +69,6 @@ pub fn apply_updates<const SYNC_COMMITTEE_SIZE: usize, C: ChainContext>(
     };
 
     let mut new_client_state = client_state.clone();
-    if client_state.latest_slot < update_slot {
-        new_client_state.latest_slot = update_slot;
-    }
     if client_state.latest_execution_block_number < block_number {
         new_client_state.latest_execution_block_number = block_number;
     }
