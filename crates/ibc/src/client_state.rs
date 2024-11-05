@@ -339,7 +339,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
         };
 
         let trusted_consensus_state = TrustedConsensusState::new(
-            consensus_state,
+            consensus_state.clone(),
             trusted_sync_committee.sync_committee,
             trusted_sync_committee.is_next,
         )?;
@@ -374,13 +374,13 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
             self.trusting_period,
             self.max_clock_drift,
             timestamp,
-            trusted_consensus_state.state.timestamp,
+            consensus_state.timestamp,
         )?;
 
         let (new_client_state, new_consensus_state) = apply_updates(
             &cc,
             self,
-            &trusted_consensus_state,
+            &consensus_state,
             consensus_update,
             execution_update.block_number,
             account_update.account_storage_root,

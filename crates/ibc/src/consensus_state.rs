@@ -55,6 +55,10 @@ impl ConsensusState {
             Ok(())
         }
     }
+
+    pub fn current_period<C: ChainContext>(&self, ctx: &C) -> SyncCommitteePeriod {
+        compute_sync_committee_period_at_slot(ctx, self.slot)
+    }
 }
 
 impl Default for ConsensusState {
@@ -180,9 +184,9 @@ impl From<ConsensusState> for IBCAny {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TrustedConsensusState<const SYNC_COMMITTEE_SIZE: usize> {
-    pub(crate) state: ConsensusState,
-    pub(crate) current_sync_committee: Option<SyncCommittee<SYNC_COMMITTEE_SIZE>>,
-    pub(crate) next_sync_committee: Option<SyncCommittee<SYNC_COMMITTEE_SIZE>>,
+    state: ConsensusState,
+    current_sync_committee: Option<SyncCommittee<SYNC_COMMITTEE_SIZE>>,
+    next_sync_committee: Option<SyncCommittee<SYNC_COMMITTEE_SIZE>>,
 }
 
 impl<const SYNC_COMMITTEE_SIZE: usize> TrustedConsensusState<SYNC_COMMITTEE_SIZE> {
@@ -222,7 +226,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize> TrustedConsensusState<SYNC_COMMITTEE_SIZE
     }
 
     pub fn current_period<C: ChainContext>(&self, ctx: &C) -> SyncCommitteePeriod {
-        compute_sync_committee_period_at_slot(ctx, self.state.slot)
+        self.state.current_period(ctx)
     }
 }
 
@@ -259,6 +263,14 @@ impl<const SYNC_COMMITTEE_SIZE: usize> LightClientStoreReader<SYNC_COMMITTEE_SIZ
         } else {
             Ok(())
         }
+    }
+}
+
+impl<const SYNC_COMMITTEE_SIZE: usize> From<TrustedConsensusState<SYNC_COMMITTEE_SIZE>>
+    for ConsensusState
+{
+    fn from(value: TrustedConsensusState<SYNC_COMMITTEE_SIZE>) -> Self {
+        value.state
     }
 }
 

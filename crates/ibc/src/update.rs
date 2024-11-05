@@ -1,7 +1,5 @@
 use crate::{
-    client_state::ClientState,
-    consensus_state::{ConsensusState, TrustedConsensusState},
-    errors::Error,
+    client_state::ClientState, consensus_state::ConsensusState, errors::Error,
     types::ConsensusUpdateInfo,
 };
 use ethereum_consensus::{
@@ -15,13 +13,13 @@ use ibc::timestamp::Timestamp;
 pub fn apply_updates<const SYNC_COMMITTEE_SIZE: usize, C: ChainContext>(
     ctx: &C,
     client_state: &ClientState<SYNC_COMMITTEE_SIZE>,
-    trusted_consensus_state: &TrustedConsensusState<SYNC_COMMITTEE_SIZE>,
+    consensus_state: &ConsensusState,
     consensus_update: ConsensusUpdateInfo<SYNC_COMMITTEE_SIZE>,
     block_number: U64,
     account_storage_root: H256,
     timestamp: Timestamp,
 ) -> Result<(ClientState<SYNC_COMMITTEE_SIZE>, ConsensusState), Error> {
-    let store_period = trusted_consensus_state.current_period(ctx);
+    let store_period = consensus_state.current_period(ctx);
     let update_slot = consensus_update.finalized_header.0.slot;
     let update_period = compute_sync_committee_period_at_slot(ctx, update_slot);
     let timestamp = timestamp.into_tm_time().unwrap().unix_timestamp() as u64;
@@ -33,30 +31,32 @@ pub fn apply_updates<const SYNC_COMMITTEE_SIZE: usize, C: ChainContext>(
         ));
     }
 
+    // We can assume that the update's finalized period is equal to the attested period by `LightClientStoreReader::ensure_relevant_update()`
+    // The sync committee info is based on the attested period, so we can use the finalized period to determine the sync committee info.
+    // Let `store_period` be the period of the current sync committe of the consensus state, then the state transition is the following:
+    // - If `store_period == update_period`, then the new consensus state will have the same sync committee info as the current consensus state.
+    // - If `store_period + 1 == update_period`, then the new consensus state will have the current sync committee as the next sync committee of the current consensus state,
+    //   and the next sync committee of the new consensus state will be the next sync committee of the update.
+
     let new_consensus_state = if store_period == update_period {
         ConsensusState {
             slot: update_slot,
             storage_root: account_storage_root.0.to_vec().into(),
             timestamp: wrap_compute_timestamp_at_slot(ctx, update_slot)?,
-            current_sync_committee: trusted_consensus_state.state.current_sync_committee.clone(),
-            next_sync_committee: trusted_consensus_state.state.next_sync_committee.clone(),
+            current_sync_committee: consensus_state.current_sync_committee.clone(),
+            next_sync_committee: consensus_state.next_sync_committee.clone(),
         }
     } else if store_period + 1 == update_period {
-        if let Some((next_sync_committee, _)) = consensus_update.next_sync_committee {
+        if let Some((update_next_sync_committee, _)) = consensus_update.next_sync_committee {
             ConsensusState {
                 slot: update_slot,
                 storage_root: account_storage_root.0.to_vec().into(),
                 timestamp: wrap_compute_timestamp_at_slot(ctx, update_slot)?,
-                // unwrap is safe because the consensus update validation has passed
-                current_sync_committee: trusted_consensus_state
-                    .next_sync_committee
-                    .as_ref()
-                    .unwrap()
-                    .aggregate_pubkey
-                    .clone(),
-                next_sync_committee: next_sync_committee.aggregate_pubkey,
+                current_sync_committee: consensus_state.next_sync_committee.clone(),
+                next_sync_committee: update_next_sync_committee.aggregate_pubkey,
             }
         } else {
+            // Relayers must submit an update that contains the next sync committee if the update period is `store_period + 1`.
             return Err(Error::NoNextSyncCommitteeInConsensusUpdate(
                 store_period.into(),
                 update_period.into(),
@@ -64,6 +64,7 @@ pub fn apply_updates<const SYNC_COMMITTEE_SIZE: usize, C: ChainContext>(
         }
     } else {
         // store_period + 1 < update_period
+        // Relayers must submit an update that contains the next sync committee if the update period is `store_period + 1`` in advance.
         return Err(Error::FuturePeriodError(store_period, update_period));
     };
 
