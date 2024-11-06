@@ -107,6 +107,8 @@ pub enum Error {
     },
     /// proto missing field error: `{0}`
     ProtoMissingFieldError(String),
+    /// unknown message type: `{0}`
+    UnknownMessageType(String),
 }
 
 impl Error {
