@@ -1,6 +1,9 @@
 use crate::errors::Error;
 use crate::internal_prelude::*;
-use crate::misbehaviour::Misbehaviour;
+use crate::misbehaviour::{
+    Misbehaviour, ETHEREUM_FINALIZED_HEADER_MISBEHAVIOUR_TYPE_URL,
+    ETHEREUM_NEXT_SYNC_COMMITTEE_MISBEHAVIOUR_TYPE_URL,
+};
 use crate::types::{
     convert_consensus_update_to_proto, convert_execution_update_to_proto,
     convert_proto_to_consensus_update, convert_proto_to_execution_update, AccountUpdateInfo,
@@ -18,10 +21,40 @@ use prost::Message;
 pub const ETHEREUM_HEADER_TYPE_URL: &str = "/ibc.lightclients.ethereum.v1.Header";
 
 #[allow(clippy::large_enum_variant)]
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub enum ClientMessage<const SYNC_COMMITTEE_SIZE: usize> {
     Header(Header<SYNC_COMMITTEE_SIZE>),
     Misbehaviour(Misbehaviour<SYNC_COMMITTEE_SIZE>),
+}
+
+impl<const SYNC_COMMITTEE_SIZE: usize> Protobuf<IBCAny> for ClientMessage<SYNC_COMMITTEE_SIZE> {}
+
+impl<const SYNC_COMMITTEE_SIZE: usize> TryFrom<IBCAny> for ClientMessage<SYNC_COMMITTEE_SIZE> {
+    type Error = Error;
+
+    fn try_from(raw: IBCAny) -> Result<Self, Self::Error> {
+        match raw.type_url.as_str() {
+            ETHEREUM_HEADER_TYPE_URL => {
+                let header = Header::<SYNC_COMMITTEE_SIZE>::try_from(raw)?;
+                Ok(Self::Header(header))
+            }
+            ETHEREUM_FINALIZED_HEADER_MISBEHAVIOUR_TYPE_URL
+            | ETHEREUM_NEXT_SYNC_COMMITTEE_MISBEHAVIOUR_TYPE_URL => {
+                let misbehaviour = Misbehaviour::<SYNC_COMMITTEE_SIZE>::try_from(raw)?;
+                Ok(Self::Misbehaviour(misbehaviour))
+            }
+            _ => Err(Error::UnknownMessageType(raw.type_url)),
+        }
+    }
+}
+
+impl<const SYNC_COMMITTEE_SIZE: usize> From<ClientMessage<SYNC_COMMITTEE_SIZE>> for IBCAny {
+    fn from(msg: ClientMessage<SYNC_COMMITTEE_SIZE>) -> Self {
+        match msg {
+            ClientMessage::Header(header) => IBCAny::from(header),
+            ClientMessage::Misbehaviour(misbehaviour) => IBCAny::from(misbehaviour),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
