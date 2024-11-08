@@ -244,6 +244,7 @@ mod tests {
             dummy_execution_block_number.into(),
             current_sync_committee,
             scm.get_committee(2),
+            true,
             32,
         );
         let update_2 = gen_light_client_update_with_params::<32, _>(
@@ -255,6 +256,7 @@ mod tests {
             dummy_execution_block_number.into(),
             current_sync_committee,
             scm.get_committee(3),
+            true,
             32,
         );
         let update_1 = to_consensus_update_info(update_1);
@@ -285,6 +287,7 @@ mod tests {
             dummy_execution_block_number.into(),
             current_sync_committee,
             scm.get_committee(2),
+            true,
             32,
         );
 

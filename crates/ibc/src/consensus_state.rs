@@ -224,36 +224,28 @@ impl<const SYNC_COMMITTEE_SIZE: usize> TrustedConsensusState<SYNC_COMMITTEE_SIZE
             ))
         }
     }
-
-    pub fn current_period<C: ChainContext>(&self, ctx: &C) -> SyncCommitteePeriod {
-        self.state.current_period(ctx)
-    }
 }
 
 impl<const SYNC_COMMITTEE_SIZE: usize> LightClientStoreReader<SYNC_COMMITTEE_SIZE>
     for TrustedConsensusState<SYNC_COMMITTEE_SIZE>
 {
-    fn get_sync_committee<CC: ChainContext>(
-        &self,
-        ctx: &CC,
-        period: SyncCommitteePeriod,
-    ) -> Option<SyncCommittee<SYNC_COMMITTEE_SIZE>> {
-        let store_period = self.current_period(ctx);
-        if period == store_period {
-            self.current_sync_committee.clone()
-        } else if period == store_period + 1 {
-            self.next_sync_committee.clone()
-        } else {
-            None
-        }
+    fn current_period<C: ChainContext>(&self, ctx: &C) -> SyncCommitteePeriod {
+        self.state.current_period(ctx)
+    }
+
+    fn current_sync_committee(&self) -> Option<SyncCommittee<SYNC_COMMITTEE_SIZE>> {
+        self.current_sync_committee.clone()
+    }
+
+    fn next_sync_committee(&self) -> Option<SyncCommittee<SYNC_COMMITTEE_SIZE>> {
+        self.next_sync_committee.clone()
     }
 
     fn ensure_relevant_update<CC: ChainContext, C: ConsensusUpdate<SYNC_COMMITTEE_SIZE>>(
         &self,
-        ctx: &CC,
+        _ctx: &CC,
         update: &C,
     ) -> Result<(), ethereum_light_client_verifier::errors::Error> {
-        update.ensure_consistent_update_period(ctx)?;
         if self.state.slot >= update.finalized_beacon_header().slot {
             Err(
                 ethereum_light_client_verifier::errors::Error::IrrelevantConsensusUpdates(

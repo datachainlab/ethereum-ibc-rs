@@ -241,7 +241,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize> ClientState<SYNC_COMMITTEE_SIZE> {
         }
     }
 
-    fn validate(&self) -> Result<(), Error> {
+    pub fn validate(&self) -> Result<(), Error> {
         if self.genesis_validators_root == Root::default() {
             Err(Error::UninitializedClientStateField(
                 "genesis_validators_root",

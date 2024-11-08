@@ -40,8 +40,8 @@ pub enum Error {
     AccountStorageRootMismatch(H256, H256, H256, String, Vec<String>),
     /// invalid account storage root: {0:?}
     InvalidAccountStorageRoot(Vec<u8>),
-    /// future period error: store={0} update={1}
-    FuturePeriodError(U64, U64),
+    /// store does not support the finalized_period: store_period={0} finalized_period={1}
+    StoreNotSupportedFinalizedPeriod(U64, U64),
     /// both updates of misbehaviour data must have same period: {0} != {1}
     DifferentPeriodInNextSyncCommitteeMisbehaviour(SyncCommitteePeriod, SyncCommitteePeriod),
     /// both updates of misbehaviour data must have next sync committee

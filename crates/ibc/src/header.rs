@@ -197,47 +197,50 @@ mod tests {
         let dummy_execution_state_root = [1u8; 32].into();
         let dummy_execution_block_number = 1;
 
-        let update = gen_light_client_update_with_params::<32, _>(
-            &ctx,
-            base_signature_slot,
-            base_attested_slot,
-            base_finalized_epoch,
-            dummy_execution_state_root,
-            dummy_execution_block_number.into(),
-            current_sync_committee,
-            scm.get_committee(2),
-            32,
-        );
-        let update = to_consensus_update_info(update);
-        let header = Header {
-            trusted_sync_committee: TrustedSyncCommittee {
-                height: ibc::Height::new(1, 1).unwrap(),
-                sync_committee: current_sync_committee.to_committee().clone(),
-                is_next: true,
-            },
-            consensus_update: update.clone(),
-            execution_update: ExecutionUpdateInfo::default(),
-            account_update: AccountUpdateInfo::default(),
-            timestamp: Timestamp::from_nanoseconds(1730729158 * 1_000_000_000).unwrap(),
-        };
-        let any = IBCAny::from(header.clone());
-        let decoded = Header::<32>::try_from(any).unwrap();
-        assert_eq!(header, decoded);
+        for b in [false, true] {
+            let update = gen_light_client_update_with_params::<32, _>(
+                &ctx,
+                base_signature_slot,
+                base_attested_slot,
+                base_finalized_epoch,
+                dummy_execution_state_root,
+                dummy_execution_block_number.into(),
+                current_sync_committee,
+                scm.get_committee(2),
+                b,
+                32,
+            );
+            let update = to_consensus_update_info(update);
+            let header = Header {
+                trusted_sync_committee: TrustedSyncCommittee {
+                    height: ibc::Height::new(1, 1).unwrap(),
+                    sync_committee: current_sync_committee.to_committee().clone(),
+                    is_next: true,
+                },
+                consensus_update: update.clone(),
+                execution_update: ExecutionUpdateInfo::default(),
+                account_update: AccountUpdateInfo::default(),
+                timestamp: Timestamp::from_nanoseconds(1730729158 * 1_000_000_000).unwrap(),
+            };
+            let any = IBCAny::from(header.clone());
+            let decoded = Header::<32>::try_from(any).unwrap();
+            assert_eq!(header, decoded);
 
-        let header = Header {
-            trusted_sync_committee: TrustedSyncCommittee {
-                height: ibc::Height::new(1, 1).unwrap(),
-                sync_committee: current_sync_committee.to_committee().clone(),
-                is_next: true,
-            },
-            consensus_update: update,
-            execution_update: ExecutionUpdateInfo::default(),
-            account_update: AccountUpdateInfo::default(),
-            timestamp: Timestamp::from_nanoseconds(0).unwrap(),
-        };
-        let any = IBCAny::from(header.clone());
-        let res = Header::<32>::try_from(any);
-        assert!(res.is_err());
+            let header = Header {
+                trusted_sync_committee: TrustedSyncCommittee {
+                    height: ibc::Height::new(1, 1).unwrap(),
+                    sync_committee: current_sync_committee.to_committee().clone(),
+                    is_next: true,
+                },
+                consensus_update: update,
+                execution_update: ExecutionUpdateInfo::default(),
+                account_update: AccountUpdateInfo::default(),
+                timestamp: Timestamp::from_nanoseconds(0).unwrap(),
+            };
+            let any = IBCAny::from(header.clone());
+            let res = Header::<32>::try_from(any);
+            assert!(res.is_err(), "header with zero timestamp should fail");
+        }
     }
 
     fn to_consensus_update_info<const SYNC_COMMITTEE_SIZE: usize>(
