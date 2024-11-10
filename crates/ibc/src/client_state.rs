@@ -279,10 +279,6 @@ impl<const SYNC_COMMITTEE_SIZE: usize> ClientState<SYNC_COMMITTEE_SIZE> {
 }
 
 impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMMITTEE_SIZE> {
-    fn chain_id(&self) -> ChainId {
-        todo!()
-    }
-
     fn client_type(&self) -> ClientType {
         eth_client_type()
     }
@@ -293,15 +289,6 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
 
     fn frozen_height(&self) -> Option<Height> {
         self.frozen_height
-    }
-
-    #[allow(unused_variables)]
-    fn expired(&self, elapsed: Duration) -> bool {
-        todo!()
-    }
-
-    fn zero_custom_fields(&mut self) {
-        todo!()
     }
 
     fn initialise(
@@ -444,27 +431,6 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
             .clone()
             .with_frozen_height(misbehaviour.trusted_sync_committee.height)
             .into_box())
-    }
-
-    #[allow(unused_variables)]
-    fn verify_upgrade_client(
-        &self,
-        upgraded_client_state: Any,
-        upgraded_consensus_state: Any,
-        proof_upgrade_client: ibc_proto::ibc::core::commitment::v1::MerkleProof,
-        proof_upgrade_consensus_state: ibc_proto::ibc::core::commitment::v1::MerkleProof,
-        root: &ibc::core::ics23_commitment::commitment::CommitmentRoot,
-    ) -> Result<(), ClientError> {
-        todo!()
-    }
-
-    #[allow(unused_variables)]
-    fn update_state_with_upgrade_client(
-        &self,
-        upgraded_client_state: Any,
-        upgraded_consensus_state: Any,
-    ) -> Result<UpdatedState, ClientError> {
-        todo!()
     }
 
     fn verify_client_consensus_state(
@@ -652,6 +618,42 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
             root,
             receipt_path.clone(),
         )
+    }
+
+    // `chain_id`, `expired`, `zero_custom_fields`, `verify_upgrade_client`, `update_state_with_upgrade_client` are not supported for Ethereum client
+
+    fn chain_id(&self) -> ChainId {
+        unimplemented!()
+    }
+
+    #[allow(unused_variables)]
+    fn expired(&self, elapsed: Duration) -> bool {
+        unimplemented!()
+    }
+
+    fn zero_custom_fields(&mut self) {
+        unimplemented!()
+    }
+
+    #[allow(unused_variables)]
+    fn verify_upgrade_client(
+        &self,
+        upgraded_client_state: Any,
+        upgraded_consensus_state: Any,
+        proof_upgrade_client: ibc_proto::ibc::core::commitment::v1::MerkleProof,
+        proof_upgrade_consensus_state: ibc_proto::ibc::core::commitment::v1::MerkleProof,
+        root: &ibc::core::ics23_commitment::commitment::CommitmentRoot,
+    ) -> Result<(), ClientError> {
+        unimplemented!()
+    }
+
+    #[allow(unused_variables)]
+    fn update_state_with_upgrade_client(
+        &self,
+        upgraded_client_state: Any,
+        upgraded_consensus_state: Any,
+    ) -> Result<UpdatedState, ClientError> {
+        unimplemented!()
     }
 }
 
