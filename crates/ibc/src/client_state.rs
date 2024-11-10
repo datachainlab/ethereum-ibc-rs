@@ -8,7 +8,7 @@ use crate::update::apply_updates;
 use crate::{eth_client_type, internal_prelude::*};
 use core::time::Duration;
 use ethereum_consensus::beacon::{Epoch, Root, Slot, Version};
-use ethereum_consensus::fork::{ForkParameter, ForkParameters, ForkSpec};
+use ethereum_consensus::fork::{ForkParameter, ForkParameters, ForkSpec, BELLATRIX_INDEX};
 use ethereum_consensus::types::{Address, H256, U64};
 use ethereum_ibc_proto::ibc::lightclients::ethereum::v1::{
     ClientState as RawClientState, Fork as RawFork, ForkSpec as RawForkSpec,
@@ -257,6 +257,8 @@ impl<const SYNC_COMMITTEE_SIZE: usize> ClientState<SYNC_COMMITTEE_SIZE> {
             Err(Error::UninitializedClientStateField("genesis_time"))
         } else if self.fork_parameters == ForkParameters::default() {
             Err(Error::UninitializedClientStateField("fork_parameters"))
+        } else if self.fork_parameters.forks().len() <= BELLATRIX_INDEX {
+            Err(Error::MissingBellatrixFork)
         } else if self.seconds_per_slot == U64::default() {
             Err(Error::UninitializedClientStateField("seconds_per_slot"))
         } else if self.slots_per_epoch == Slot::default() {
@@ -931,8 +933,67 @@ fn trim_left_zero(value: &[u8]) -> &[u8] {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ethereum_consensus::fork::{
+        altair::ALTAIR_FORK_SPEC, bellatrix::BELLATRIX_FORK_SPEC, capella::CAPELLA_FORK_SPEC,
+        deneb::DENEB_FORK_SPEC,
+    };
+    use ethereum_consensus::preset::minimal::PRESET;
     use hex_literal::hex;
     use time::{macros::datetime, OffsetDateTime};
+    use tiny_keccak::{Hasher, Keccak};
+
+    fn keccak256(s: &str) -> H256 {
+        let mut hasher = Keccak::v256();
+        let mut output = [0u8; 32];
+        hasher.update(s.as_bytes());
+        hasher.finalize(&mut output);
+        H256::from_slice(&output)
+    }
+
+    #[test]
+    fn test_client_state_conversion() {
+        let mut client_state =
+            ClientState::<{ ethereum_consensus::preset::minimal::PRESET.SYNC_COMMITTEE_SIZE }> {
+                genesis_validators_root: keccak256("genesis_validators_root"),
+                min_sync_committee_participants: 1.into(),
+                genesis_time: 1.into(),
+                fork_parameters: ForkParameters::new(
+                    Version([0, 0, 0, 1]),
+                    vec![
+                        ForkParameter::new(Version([1, 0, 0, 1]), U64(0), ALTAIR_FORK_SPEC),
+                        ForkParameter::new(Version([2, 0, 0, 1]), U64(0), BELLATRIX_FORK_SPEC),
+                        ForkParameter::new(Version([3, 0, 0, 1]), U64(0), CAPELLA_FORK_SPEC),
+                        ForkParameter::new(Version([4, 0, 0, 1]), U64(0), DENEB_FORK_SPEC),
+                    ],
+                )
+                .unwrap(),
+                seconds_per_slot: PRESET.SECONDS_PER_SLOT,
+                slots_per_epoch: PRESET.SLOTS_PER_EPOCH,
+                epochs_per_sync_committee_period: PRESET.EPOCHS_PER_SYNC_COMMITTEE_PERIOD,
+                ibc_address: Address(hex!("ff77D90D6aA12db33d3Ba50A34fB25401f6e4c4F")),
+                ibc_commitments_slot: keccak256("ibc_commitments_slot"),
+                trust_level: Fraction::new(2, 3),
+                trusting_period: Duration::from_secs(60 * 60 * 27),
+                max_clock_drift: Duration::from_secs(60),
+                latest_execution_block_number: 1.into(),
+                frozen_height: None,
+                consensus_verifier: Default::default(),
+                execution_verifier: Default::default(),
+            };
+        let res = client_state.validate();
+        assert!(res.is_ok(), "{:?}", res);
+        client_state.fork_parameters = ForkParameters::new(
+            Version([0, 0, 0, 1]),
+            vec![ForkParameter::new(
+                Version([1, 0, 0, 1]),
+                U64(0),
+                ALTAIR_FORK_SPEC,
+            )],
+        )
+        .unwrap();
+        let res = client_state.validate();
+        assert!(res.is_err(), "{:?}", res);
+    }
 
     #[test]
     fn test_verify_account_storage() {
