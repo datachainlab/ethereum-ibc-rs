@@ -34,8 +34,10 @@ pub struct ConsensusState {
     /// timestamp from execution payload
     pub timestamp: Timestamp,
     /// aggregate public key of current sync committee
+    /// "current" indicates a period corresponding to the `slot`
     pub current_sync_committee: PublicKey,
     /// aggregate public key of next sync committee
+    /// "next" indicates `current + 1` period
     pub next_sync_committee: PublicKey,
 }
 
@@ -269,7 +271,28 @@ impl<const SYNC_COMMITTEE_SIZE: usize> From<TrustedConsensusState<SYNC_COMMITTEE
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ethereum_consensus::types::H256;
+    use hex_literal::hex;
     use time::macros::datetime;
+
+    #[test]
+    fn test_consensus_state_conversion() {
+        let consensus_state = ConsensusState {
+            slot: 1.into(),
+            storage_root: CommitmentRoot::from_bytes(keccak256("storage").as_bytes()),
+            timestamp: Timestamp::from_nanoseconds(
+                datetime!(2023-08-20 0:00 UTC).unix_timestamp_nanos() as u64,
+            )
+            .unwrap(),
+            current_sync_committee: PublicKey::try_from(hex!("a145063e1b5eda80fa55960296f2c4b2c021f75767318ea2572a9f7abb649010b746754ca7fc2ba57c1156881516a357").to_vec()).unwrap(),
+            next_sync_committee: PublicKey::try_from(hex!("a42dffb90d85cec7acfcb53be0e8792155d8f18c0dc9efc2a5587d5a0ba3e578df366fc3e2b743de6ecd3b53e345c266").to_vec()).unwrap(),
+        };
+        let res = consensus_state.validate();
+        assert!(res.is_ok(), "{:?}", res);
+        let any_consensus_state = IBCAny::from(consensus_state.clone());
+        let consensus_state2 = ConsensusState::try_from(any_consensus_state).unwrap();
+        assert_eq!(consensus_state, consensus_state2);
+    }
 
     #[test]
     fn test_timestamp() {
@@ -294,5 +317,14 @@ mod tests {
             let it2 = proto_timestamp_to_ibc_timestamp(pt1).unwrap();
             assert_eq!(it1, it2);
         }
+    }
+
+    fn keccak256(s: &str) -> H256 {
+        use tiny_keccak::{Hasher, Keccak};
+        let mut hasher = Keccak::v256();
+        let mut output = [0u8; 32];
+        hasher.update(s.as_bytes());
+        hasher.finalize(&mut output);
+        H256::from_slice(&output)
     }
 }

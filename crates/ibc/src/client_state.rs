@@ -940,19 +940,10 @@ mod tests {
     use ethereum_consensus::preset::minimal::PRESET;
     use hex_literal::hex;
     use time::{macros::datetime, OffsetDateTime};
-    use tiny_keccak::{Hasher, Keccak};
-
-    fn keccak256(s: &str) -> H256 {
-        let mut hasher = Keccak::v256();
-        let mut output = [0u8; 32];
-        hasher.update(s.as_bytes());
-        hasher.finalize(&mut output);
-        H256::from_slice(&output)
-    }
 
     #[test]
     fn test_client_state_conversion() {
-        let mut client_state =
+        let client_state =
             ClientState::<{ ethereum_consensus::preset::minimal::PRESET.SYNC_COMMITTEE_SIZE }> {
                 genesis_validators_root: keccak256("genesis_validators_root"),
                 min_sync_committee_participants: 1.into(),
@@ -982,6 +973,13 @@ mod tests {
             };
         let res = client_state.validate();
         assert!(res.is_ok(), "{:?}", res);
+
+        let any_client_state: Any = client_state.clone().into();
+        let client_state2 = ClientState::try_from(any_client_state).unwrap();
+        assert_eq!(client_state, client_state2);
+
+        // Unexpected fork parameters
+        let mut client_state = client_state.clone();
         client_state.fork_parameters = ForkParameters::new(
             Version([0, 0, 0, 1]),
             vec![ForkParameter::new(
@@ -1175,5 +1173,14 @@ mod tests {
         assert_eq!(trim_left_zero(&[0, 0, 0, 4]), [4]);
         assert!(trim_left_zero(&[0, 0, 0, 0]).is_empty());
         assert!(trim_left_zero(&[]).is_empty());
+    }
+
+    fn keccak256(s: &str) -> H256 {
+        use tiny_keccak::{Hasher, Keccak};
+        let mut hasher = Keccak::v256();
+        let mut output = [0u8; 32];
+        hasher.update(s.as_bytes());
+        hasher.finalize(&mut output);
+        H256::from_slice(&output)
     }
 }
