@@ -272,6 +272,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize> From<TrustedConsensusState<SYNC_COMMITTEE
 mod tests {
     use super::*;
     use ethereum_consensus::types::H256;
+    use ethereum_light_client_verifier::consensus::test_utils::MockSyncCommitteeManager;
     use hex_literal::hex;
     use time::macros::datetime;
 
@@ -292,6 +293,56 @@ mod tests {
         let any_consensus_state = IBCAny::from(consensus_state.clone());
         let consensus_state2 = ConsensusState::try_from(any_consensus_state).unwrap();
         assert_eq!(consensus_state, consensus_state2);
+    }
+
+    #[test]
+    fn test_trusted_consensus_state() {
+        let scm = MockSyncCommitteeManager::<32>::new(1, 2);
+        let current_sync_committee = scm.get_committee(1);
+        let next_sync_committee = scm.get_committee(2);
+
+        let consensus_state = ConsensusState {
+            slot: 64.into(),
+            storage_root: CommitmentRoot::from_bytes(keccak256("storage").as_bytes()),
+            timestamp: Timestamp::from_nanoseconds(
+                datetime!(2023-08-20 0:00 UTC).unix_timestamp_nanos() as u64,
+            )
+            .unwrap(),
+            current_sync_committee: current_sync_committee.to_committee().aggregate_pubkey,
+            next_sync_committee: next_sync_committee.to_committee().aggregate_pubkey,
+        };
+
+        let res = TrustedConsensusState::new(
+            consensus_state.clone(),
+            current_sync_committee.to_committee(),
+            false,
+        );
+        assert!(res.is_ok(), "{:?}", res);
+        let state = res.unwrap();
+        assert!(state.current_sync_committee.is_some());
+        assert!(state.next_sync_committee.is_none());
+        let res = TrustedConsensusState::new(
+            consensus_state.clone(),
+            current_sync_committee.to_committee(),
+            true,
+        );
+        assert!(res.is_err(), "{:?}", res);
+
+        let res = TrustedConsensusState::new(
+            consensus_state.clone(),
+            next_sync_committee.to_committee(),
+            true,
+        );
+        assert!(res.is_ok(), "{:?}", res);
+        let state = res.unwrap();
+        assert!(state.current_sync_committee.is_none());
+        assert!(state.next_sync_committee.is_some());
+        let res = TrustedConsensusState::new(
+            consensus_state.clone(),
+            next_sync_committee.to_committee(),
+            false,
+        );
+        assert!(res.is_err(), "{:?}", res);
     }
 
     #[test]
