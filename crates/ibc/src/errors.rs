@@ -58,7 +58,7 @@ pub enum Error {
         target_height: Height,
     },
     /// unexpected timestamp: expected={0} got={1}
-    UnexpectedTimestamp(u64, u64),
+    UnexpectedTimestamp(i128, i128),
     /// missing trusting period
     MissingTrustingPeriod,
     /// negative max clock drift
