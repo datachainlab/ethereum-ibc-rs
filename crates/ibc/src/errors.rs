@@ -27,7 +27,7 @@ pub enum Error {
         Vec<String>,
     ),
     /// consensus update doesn't have next sync committee: store_period={0} update_period={1}
-    NoNextSyncCommitteeInConsensusUpdate(u64, u64),
+    NoNextSyncCommitteeInConsensusUpdate(U64, U64),
     /// invalid current sync committee keys: expected={0:?} actual={1:?}
     InvalidCurrentSyncCommitteeKeys(PublicKey, PublicKey),
     /// invalid next sync committee keys: expected={0:?} actual={1:?}
