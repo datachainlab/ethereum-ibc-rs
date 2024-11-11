@@ -312,7 +312,10 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
         client_id: ClientId,
         header: Any,
     ) -> Result<UpdatedState, ClientError> {
+        let cc = self.build_context(ctx);
         let header = Header::<SYNC_COMMITTEE_SIZE>::try_from(header)?;
+        header.validate(&cc)?;
+
         let trusted_sync_committee = header.trusted_sync_committee;
         let consensus_state = match maybe_consensus_state(
             ctx,
@@ -338,7 +341,6 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
         let account_update = header.account_update;
         let header_timestamp = header.timestamp;
 
-        let cc = self.build_context(ctx);
         self.consensus_verifier
             .validate_updates(
                 &cc,

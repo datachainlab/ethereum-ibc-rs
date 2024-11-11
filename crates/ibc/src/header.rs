@@ -10,7 +10,10 @@ use crate::types::{
     ConsensusUpdateInfo, ExecutionUpdateInfo, TrustedSyncCommittee,
 };
 use bytes::Buf;
+use ethereum_consensus::compute::compute_timestamp_at_slot;
+use ethereum_consensus::context::ChainContext;
 use ethereum_ibc_proto::ibc::lightclients::ethereum::v1::Header as RawHeader;
+use ethereum_light_client_verifier::updates::ConsensusUpdate;
 use ibc::core::ics02_client::error::ClientError;
 use ibc::core::ics02_client::header::Header as Ics02Header;
 use ibc::timestamp::Timestamp;
@@ -70,6 +73,22 @@ pub fn decode_header<const SYNC_COMMITTEE_SIZE: usize, B: Buf>(
     buf: B,
 ) -> Result<Header<SYNC_COMMITTEE_SIZE>, Error> {
     RawHeader::decode(buf).map_err(Error::Decode)?.try_into()
+}
+
+impl<const SYNC_COMMITTEE_SIZE: usize> Header<SYNC_COMMITTEE_SIZE> {
+    pub fn validate<C: ChainContext>(&self, ctx: &C) -> Result<(), Error> {
+        self.trusted_sync_committee.sync_committee.validate()?;
+        let header_timestamp = self.timestamp.into_tm_time().unwrap().unix_timestamp() as u64;
+        let timestamp =
+            compute_timestamp_at_slot(ctx, self.consensus_update.finalized_beacon_header().slot);
+        if header_timestamp != timestamp.0 {
+            return Err(Error::UnexpectedTimestamp(
+                timestamp.into(),
+                header_timestamp,
+            ));
+        }
+        Ok(())
+    }
 }
 
 impl<const SYNC_COMMITTEE_SIZE: usize> Ics02Header for Header<SYNC_COMMITTEE_SIZE> {
@@ -220,8 +239,14 @@ mod tests {
                 consensus_update: update.clone(),
                 execution_update: ExecutionUpdateInfo::default(),
                 account_update: AccountUpdateInfo::default(),
-                timestamp: Timestamp::from_nanoseconds(1730729158 * 1_000_000_000).unwrap(),
+                timestamp: Timestamp::from_nanoseconds(
+                    compute_timestamp_at_slot(&ctx, update.finalized_beacon_header().slot).0
+                        * 1_000_000_000,
+                )
+                .unwrap(),
             };
+            let res = header.validate(&ctx);
+            assert!(res.is_ok(), "header validation failed: {:?}", res);
             let any = IBCAny::from(header.clone());
             let decoded = Header::<32>::try_from(any).unwrap();
             assert_eq!(header, decoded);
