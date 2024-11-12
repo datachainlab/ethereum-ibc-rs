@@ -33,6 +33,11 @@ use ibc_proto::protobuf::Protobuf;
 use prost::Message;
 use serde::{Deserialize, Serialize};
 
+/// The revision number for the Ethereum light client is always 0.
+///
+/// Therefore, in ethereum, the revision number is not used to determine the hard fork.
+/// The current fork is determined by the client state's fork parameters.
+pub const ETHEREUM_CLIENT_REVISION_NUMBER: u64 = 0;
 pub const ETHEREUM_CLIENT_STATE_TYPE_URL: &str = "/ibc.lightclients.ethereum.v1.ClientState";
 pub const ETHEREUM_ACCOUNT_STORAGE_ROOT_INDEX: usize = 2;
 
@@ -163,12 +168,14 @@ impl<const SYNC_COMMITTEE_SIZE: usize> ClientState<SYNC_COMMITTEE_SIZE> {
 
     pub fn verify_membership(
         &self,
+        proof_height: ibc::Height,
         _counterparty_prefix: &ibc::core::ics23_commitment::commitment::CommitmentPrefix,
         proof: &ibc::core::ics23_commitment::commitment::CommitmentProofBytes,
         root: &ibc::core::ics23_commitment::commitment::CommitmentRoot,
         path: impl Into<Path>,
         value: Vec<u8>,
     ) -> Result<(), ClientError> {
+        self.verify_height(proof_height)?;
         let proof = decode_eip1184_rlp_proof(proof.clone().into())?;
         let path = path.into();
         let root = H256::from_slice(root.as_bytes());
@@ -199,11 +206,13 @@ impl<const SYNC_COMMITTEE_SIZE: usize> ClientState<SYNC_COMMITTEE_SIZE> {
 
     pub fn verify_non_membership(
         &self,
+        proof_height: ibc::Height,
         _counterparty_prefix: &ibc::core::ics23_commitment::commitment::CommitmentPrefix,
         proof: &ibc::core::ics23_commitment::commitment::CommitmentProofBytes,
         root: &ibc::core::ics23_commitment::commitment::CommitmentRoot,
         path: impl Into<Path>,
     ) -> Result<(), ibc::core::ics02_client::error::ClientError> {
+        self.verify_height(proof_height)?;
         let proof = decode_eip1184_rlp_proof(proof.clone().into())?;
         let path = path.into();
         let root = H256::from_slice(root.as_bytes());
@@ -227,21 +236,27 @@ impl<const SYNC_COMMITTEE_SIZE: usize> ClientState<SYNC_COMMITTEE_SIZE> {
         Ok(())
     }
 
-    /// Verify that the client is at a sufficient height and unfrozen at the given height
+    /// Verify that the client is at a sufficient height and unfrozen
     pub fn verify_height(&self, height: Height) -> Result<(), Error> {
+        if height.revision_number() != ETHEREUM_CLIENT_REVISION_NUMBER {
+            return Err(Error::UnexpectedHeightRevisionNumber {
+                expected: ETHEREUM_CLIENT_REVISION_NUMBER,
+                got: height.revision_number(),
+            });
+        }
+        if self.is_frozen() {
+            return Err(Error::ClientFrozen {
+                frozen_height: self.frozen_height.unwrap(),
+                target_height: height,
+            });
+        }
         if self.latest_height() < height {
             return Err(Error::InsufficientHeight {
                 latest_height: self.latest_height(),
                 target_height: height,
             });
         }
-        match self.frozen_height {
-            Some(frozen_height) if frozen_height <= height => Err(Error::ClientFrozen {
-                frozen_height,
-                target_height: height,
-            }),
-            _ => Ok(()),
-        }
+        Ok(())
     }
 
     pub fn validate(&self) -> Result<(), Error> {
@@ -289,7 +304,11 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
     }
 
     fn latest_height(&self) -> Height {
-        Height::new(0, self.latest_execution_block_number.into()).unwrap()
+        Height::new(
+            ETHEREUM_CLIENT_REVISION_NUMBER,
+            self.latest_execution_block_number.into(),
+        )
+        .unwrap()
     }
 
     fn frozen_height(&self) -> Option<Height> {
@@ -315,6 +334,9 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
         client_id: ClientId,
         header: Any,
     ) -> Result<UpdatedState, ClientError> {
+        if self.is_frozen() {
+            return Err(ClientError::ClientFrozen { client_id });
+        }
         let cc = self.build_context(ctx);
         let header = Header::<SYNC_COMMITTEE_SIZE>::try_from(header)?;
         header.validate(&cc)?;
@@ -395,6 +417,9 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
         client_id: ClientId,
         misbehaviour: Any,
     ) -> Result<alloc::boxed::Box<dyn Ics2ClientState>, ibc::core::ContextError> {
+        if self.is_frozen() {
+            return Err(ClientError::ClientFrozen { client_id }.into());
+        }
         let misbehaviour = Misbehaviour::<SYNC_COMMITTEE_SIZE>::try_from(misbehaviour)?;
         let consensus_state = match maybe_consensus_state(
             ctx,
@@ -448,13 +473,11 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
         client_cons_state_path: &ibc::core::ics24_host::path::ClientConsensusStatePath,
         expected_consensus_state: &dyn ibc::core::ics02_client::consensus_state::ConsensusState,
     ) -> Result<(), ClientError> {
-        let client_state = downcast_eth_client_state::<SYNC_COMMITTEE_SIZE>(self)?;
-        client_state.verify_height(proof_height)?;
-
         let value = expected_consensus_state
             .encode_vec()
             .map_err(ClientError::InvalidAnyConsensusState)?;
         self.verify_membership(
+            proof_height,
             counterparty_prefix,
             proof,
             root,
@@ -472,13 +495,11 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
         counterparty_conn_path: &ibc::core::ics24_host::path::ConnectionPath,
         expected_counterparty_connection_end: &ibc::core::ics03_connection::connection::ConnectionEnd,
     ) -> Result<(), ClientError> {
-        let client_state = downcast_eth_client_state::<SYNC_COMMITTEE_SIZE>(self)?;
-        client_state.verify_height(proof_height)?;
-
         let value = expected_counterparty_connection_end
             .encode_vec()
             .map_err(ClientError::InvalidConnectionEnd)?;
         self.verify_membership(
+            proof_height,
             counterparty_prefix,
             proof,
             root,
@@ -496,14 +517,12 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
         counterparty_chan_end_path: &ibc::core::ics24_host::path::ChannelEndPath,
         expected_counterparty_channel_end: &ibc::core::ics04_channel::channel::ChannelEnd,
     ) -> Result<(), ClientError> {
-        let client_state = downcast_eth_client_state::<SYNC_COMMITTEE_SIZE>(self)?;
-        client_state.verify_height(proof_height)?;
-
         let value = expected_counterparty_channel_end
             .encode_vec()
             .map_err(ClientError::InvalidChannelEnd)?;
 
         self.verify_membership(
+            proof_height,
             counterparty_prefix,
             proof,
             root,
@@ -521,12 +540,10 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
         client_state_path: &ibc::core::ics24_host::path::ClientStatePath,
         expected_client_state: Any,
     ) -> Result<(), ClientError> {
-        let client_state = downcast_eth_client_state::<SYNC_COMMITTEE_SIZE>(self)?;
-        client_state.verify_height(proof_height)?;
-
         let value = expected_client_state.encode_to_vec();
 
         self.verify_membership(
+            proof_height,
             counterparty_prefix,
             proof,
             root,
@@ -538,17 +555,15 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
     fn verify_packet_data(
         &self,
         _ctx: &dyn ibc::core::ValidationContext,
-        height: ibc::Height,
+        proof_height: ibc::Height,
         connection_end: &ibc::core::ics03_connection::connection::ConnectionEnd,
         proof: &ibc::core::ics23_commitment::commitment::CommitmentProofBytes,
         root: &ibc::core::ics23_commitment::commitment::CommitmentRoot,
         commitment_path: &ibc::core::ics24_host::path::CommitmentPath,
         commitment: ibc::core::ics04_channel::commitment::PacketCommitment,
     ) -> Result<(), ClientError> {
-        let client_state = downcast_eth_client_state::<SYNC_COMMITTEE_SIZE>(self)?;
-        client_state.verify_height(height)?;
-
         self.verify_membership(
+            proof_height,
             connection_end.counterparty().prefix(),
             proof,
             root,
@@ -560,17 +575,15 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
     fn verify_packet_acknowledgement(
         &self,
         _ctx: &dyn ibc::core::ValidationContext,
-        height: ibc::Height,
+        proof_height: ibc::Height,
         connection_end: &ibc::core::ics03_connection::connection::ConnectionEnd,
         proof: &ibc::core::ics23_commitment::commitment::CommitmentProofBytes,
         root: &ibc::core::ics23_commitment::commitment::CommitmentRoot,
         ack_path: &ibc::core::ics24_host::path::AckPath,
         ack: ibc::core::ics04_channel::commitment::AcknowledgementCommitment,
     ) -> Result<(), ClientError> {
-        let client_state = downcast_eth_client_state::<SYNC_COMMITTEE_SIZE>(self)?;
-        client_state.verify_height(height)?;
-
         self.verify_membership(
+            proof_height,
             connection_end.counterparty().prefix(),
             proof,
             root,
@@ -582,22 +595,20 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
     fn verify_next_sequence_recv(
         &self,
         _ctx: &dyn ibc::core::ValidationContext,
-        height: ibc::Height,
+        proof_height: ibc::Height,
         connection_end: &ibc::core::ics03_connection::connection::ConnectionEnd,
         proof: &ibc::core::ics23_commitment::commitment::CommitmentProofBytes,
         root: &ibc::core::ics23_commitment::commitment::CommitmentRoot,
         seq_recv_path: &ibc::core::ics24_host::path::SeqRecvPath,
         sequence: ibc::core::ics04_channel::packet::Sequence,
     ) -> Result<(), ClientError> {
-        let client_state = downcast_eth_client_state::<SYNC_COMMITTEE_SIZE>(self)?;
-        client_state.verify_height(height)?;
-
         let mut seq_bytes = Vec::new();
         u64::from(sequence)
             .encode(&mut seq_bytes)
             .expect("buffer size too small");
 
         self.verify_membership(
+            proof_height,
             connection_end.counterparty().prefix(),
             proof,
             root,
@@ -609,16 +620,14 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
     fn verify_packet_receipt_absence(
         &self,
         _ctx: &dyn ibc::core::ValidationContext,
-        height: ibc::Height,
+        proof_height: ibc::Height,
         connection_end: &ibc::core::ics03_connection::connection::ConnectionEnd,
         proof: &ibc::core::ics23_commitment::commitment::CommitmentProofBytes,
         root: &ibc::core::ics23_commitment::commitment::CommitmentRoot,
         receipt_path: &ibc::core::ics24_host::path::ReceiptPath,
     ) -> Result<(), ClientError> {
-        let client_state = downcast_eth_client_state::<SYNC_COMMITTEE_SIZE>(self)?;
-        client_state.verify_height(height)?;
-
         self.verify_non_membership(
+            proof_height,
             connection_end.counterparty().prefix(),
             proof,
             root,
@@ -882,16 +891,6 @@ impl<const SYNC_COMMITTEE_SIZE: usize> From<ClientState<SYNC_COMMITTEE_SIZE>> fo
                 .expect("encoding to `Any` from `ClientState`"),
         }
     }
-}
-
-fn downcast_eth_client_state<const SYNC_COMMITTEE_SIZE: usize>(
-    cs: &dyn Ics2ClientState,
-) -> Result<&ClientState<SYNC_COMMITTEE_SIZE>, ClientError> {
-    cs.as_any()
-        .downcast_ref::<ClientState<SYNC_COMMITTEE_SIZE>>()
-        .ok_or_else(|| ClientError::ClientArgsTypeMismatch {
-            client_type: eth_client_type(),
-        })
 }
 
 fn downcast_eth_consensus_state(
