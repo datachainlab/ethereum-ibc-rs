@@ -179,6 +179,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize> ClientState<SYNC_COMMITTEE_SIZE> {
         let proof = decode_eip1184_rlp_proof(proof.clone().into())?;
         let path = path.into();
         let root = H256::from_slice(root.as_bytes());
+        // if root is zero, the IBC contract has not been initialized yet
         if root.is_zero() {
             return Err(ClientError::ClientSpecific {
                 description: format!(
@@ -216,6 +217,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize> ClientState<SYNC_COMMITTEE_SIZE> {
         let proof = decode_eip1184_rlp_proof(proof.clone().into())?;
         let path = path.into();
         let root = H256::from_slice(root.as_bytes());
+        // if root is zero, the IBC contract has not been initialized yet
         if root.is_zero() {
             return Err(ClientError::ClientSpecific {
                 description: format!(
