@@ -36,6 +36,13 @@ pub struct Misbehaviour<const SYNC_COMMITTEE_SIZE: usize> {
     pub data: MisbehaviourData<SYNC_COMMITTEE_SIZE, ConsensusUpdateInfo<SYNC_COMMITTEE_SIZE>>,
 }
 
+impl<const SYNC_COMMITTEE_SIZE: usize> Misbehaviour<SYNC_COMMITTEE_SIZE> {
+    pub fn validate(&self) -> Result<(), Error> {
+        self.trusted_sync_committee.validate()?;
+        Ok(())
+    }
+}
+
 impl<const SYNC_COMMITTEE_SIZE: usize> Ics02Misbehaviour for Misbehaviour<SYNC_COMMITTEE_SIZE> {
     fn client_id(&self) -> &ibc::core::ics24_host::identifier::ClientId {
         &self.client_id

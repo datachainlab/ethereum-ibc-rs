@@ -1,3 +1,4 @@
+use crate::client_state::ETHEREUM_CLIENT_REVISION_NUMBER;
 use crate::commitment::decode_eip1184_rlp_proof;
 use crate::errors::Error;
 use crate::internal_prelude::*;
@@ -108,6 +109,19 @@ pub struct TrustedSyncCommittee<const SYNC_COMMITTEE_SIZE: usize> {
     pub sync_committee: SyncCommittee<SYNC_COMMITTEE_SIZE>,
     /// since the consensus state contains a current and next sync committee, this flag determines which one to refer to
     pub is_next: bool,
+}
+
+impl<const SYNC_COMMITTEE_SIZE: usize> TrustedSyncCommittee<SYNC_COMMITTEE_SIZE> {
+    pub fn validate(&self) -> Result<(), Error> {
+        if self.height.revision_number() != ETHEREUM_CLIENT_REVISION_NUMBER {
+            return Err(Error::UnexpectedHeightRevisionNumber {
+                expected: ETHEREUM_CLIENT_REVISION_NUMBER,
+                got: self.height.revision_number(),
+            });
+        }
+        self.sync_committee.validate()?;
+        Ok(())
+    }
 }
 
 impl<const SYNC_COMMITTEE_SIZE: usize> TryFrom<ProtoTrustedSyncCommittee>

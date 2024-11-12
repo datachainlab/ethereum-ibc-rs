@@ -57,6 +57,8 @@ pub enum Error {
         latest_height: Height,
         target_height: Height,
     },
+    /// the height's revision number is unexpected: expected=`{expected}` got=`{got}`
+    UnexpectedHeightRevisionNumber { expected: u64, got: u64 },
     /// unexpected timestamp: expected={0} got={1}
     UnexpectedTimestamp(i128, i128),
     /// missing trusting period
