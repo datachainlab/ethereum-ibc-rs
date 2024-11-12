@@ -77,7 +77,7 @@ pub fn decode_header<const SYNC_COMMITTEE_SIZE: usize, B: Buf>(
 
 impl<const SYNC_COMMITTEE_SIZE: usize> Header<SYNC_COMMITTEE_SIZE> {
     pub fn validate<C: ChainContext>(&self, ctx: &C) -> Result<(), Error> {
-        self.trusted_sync_committee.sync_committee.validate()?;
+        self.trusted_sync_committee.validate()?;
         if self.timestamp.into_tm_time().is_none() {
             return Err(Error::ZeroTimestampError);
         }
@@ -198,6 +198,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize> From<Header<SYNC_COMMITTEE_SIZE>> for IBC
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::client_state::ETHEREUM_CLIENT_REVISION_NUMBER;
     use ethereum_consensus::context::ChainContext;
     use ethereum_consensus::{config, types::U64};
     use ethereum_light_client_verifier::{
@@ -246,7 +247,7 @@ mod tests {
             let update = to_consensus_update_info(update);
             let header = Header {
                 trusted_sync_committee: TrustedSyncCommittee {
-                    height: ibc::Height::new(1, 1).unwrap(),
+                    height: ibc::Height::new(ETHEREUM_CLIENT_REVISION_NUMBER, 1).unwrap(),
                     sync_committee: current_sync_committee.to_committee().clone(),
                     is_next: true,
                 },
@@ -267,7 +268,7 @@ mod tests {
 
             let header = Header {
                 trusted_sync_committee: TrustedSyncCommittee {
-                    height: ibc::Height::new(1, 1).unwrap(),
+                    height: ibc::Height::new(ETHEREUM_CLIENT_REVISION_NUMBER, 1).unwrap(),
                     sync_committee: current_sync_committee.to_committee().clone(),
                     is_next: true,
                 },
@@ -296,7 +297,7 @@ mod tests {
         let update = to_consensus_update_info(update);
         let header = Header {
             trusted_sync_committee: TrustedSyncCommittee {
-                height: ibc::Height::new(1, 1).unwrap(),
+                height: ibc::Height::new(ETHEREUM_CLIENT_REVISION_NUMBER, 1).unwrap(),
                 sync_committee: current_sync_committee.to_committee().clone(),
                 is_next: true,
             },

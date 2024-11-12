@@ -423,6 +423,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
             return Err(ClientError::ClientFrozen { client_id }.into());
         }
         let misbehaviour = Misbehaviour::<SYNC_COMMITTEE_SIZE>::try_from(misbehaviour)?;
+        misbehaviour.validate()?;
         let consensus_state = match maybe_consensus_state(
             ctx,
             &ClientConsensusStatePath::new(&client_id, &misbehaviour.trusted_sync_committee.height),
