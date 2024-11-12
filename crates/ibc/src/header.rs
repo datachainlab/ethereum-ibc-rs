@@ -10,7 +10,10 @@ use crate::types::{
     ConsensusUpdateInfo, ExecutionUpdateInfo, TrustedSyncCommittee,
 };
 use bytes::Buf;
+use ethereum_consensus::compute::compute_timestamp_at_slot;
+use ethereum_consensus::context::ChainContext;
 use ethereum_ibc_proto::ibc::lightclients::ethereum::v1::Header as RawHeader;
+use ethereum_light_client_verifier::updates::ConsensusUpdate;
 use ibc::core::ics02_client::error::ClientError;
 use ibc::core::ics02_client::header::Header as Ics02Header;
 use ibc::timestamp::Timestamp;
@@ -70,6 +73,36 @@ pub fn decode_header<const SYNC_COMMITTEE_SIZE: usize, B: Buf>(
     buf: B,
 ) -> Result<Header<SYNC_COMMITTEE_SIZE>, Error> {
     RawHeader::decode(buf).map_err(Error::Decode)?.try_into()
+}
+
+impl<const SYNC_COMMITTEE_SIZE: usize> Header<SYNC_COMMITTEE_SIZE> {
+    pub fn validate<C: ChainContext>(&self, ctx: &C) -> Result<(), Error> {
+        self.trusted_sync_committee.sync_committee.validate()?;
+        if self.timestamp.into_tm_time().is_none() {
+            return Err(Error::ZeroTimestampError);
+        }
+        let header_timestamp_nanos = self
+            .timestamp
+            .into_tm_time()
+            .unwrap()
+            .unix_timestamp_nanos();
+        let timestamp_secs =
+            compute_timestamp_at_slot(ctx, self.consensus_update.finalized_beacon_header().slot);
+        let timestamp_nanos = i128::from(timestamp_secs.0)
+            .checked_mul(1_000_000_000)
+            .ok_or_else(|| {
+                Error::TimestampOverflowError(
+                    ibc::timestamp::TimestampOverflowError::TimestampOverflow,
+                )
+            })?;
+        if header_timestamp_nanos != timestamp_nanos {
+            return Err(Error::UnexpectedTimestamp(
+                timestamp_nanos,
+                header_timestamp_nanos,
+            ));
+        }
+        Ok(())
+    }
 }
 
 impl<const SYNC_COMMITTEE_SIZE: usize> Ics02Header for Header<SYNC_COMMITTEE_SIZE> {
@@ -197,6 +230,57 @@ mod tests {
         let dummy_execution_state_root = [1u8; 32].into();
         let dummy_execution_block_number = 1;
 
+        for b in [false, true] {
+            let update = gen_light_client_update_with_params::<32, _>(
+                &ctx,
+                base_signature_slot,
+                base_attested_slot,
+                base_finalized_epoch,
+                dummy_execution_state_root,
+                dummy_execution_block_number.into(),
+                current_sync_committee,
+                scm.get_committee(2),
+                b,
+                32,
+            );
+            let update = to_consensus_update_info(update);
+            let header = Header {
+                trusted_sync_committee: TrustedSyncCommittee {
+                    height: ibc::Height::new(1, 1).unwrap(),
+                    sync_committee: current_sync_committee.to_committee().clone(),
+                    is_next: true,
+                },
+                consensus_update: update.clone(),
+                execution_update: ExecutionUpdateInfo::default(),
+                account_update: AccountUpdateInfo::default(),
+                timestamp: Timestamp::from_nanoseconds(
+                    compute_timestamp_at_slot(&ctx, update.finalized_beacon_header().slot).0
+                        * 1_000_000_000,
+                )
+                .unwrap(),
+            };
+            let res = header.validate(&ctx);
+            assert!(res.is_ok(), "header validation failed: {:?}", res);
+            let any = IBCAny::from(header.clone());
+            let decoded = Header::<32>::try_from(any).unwrap();
+            assert_eq!(header, decoded);
+
+            let header = Header {
+                trusted_sync_committee: TrustedSyncCommittee {
+                    height: ibc::Height::new(1, 1).unwrap(),
+                    sync_committee: current_sync_committee.to_committee().clone(),
+                    is_next: true,
+                },
+                consensus_update: update,
+                execution_update: ExecutionUpdateInfo::default(),
+                account_update: AccountUpdateInfo::default(),
+                timestamp: Timestamp::from_nanoseconds(0).unwrap(),
+            };
+            let any = IBCAny::from(header.clone());
+            let res = Header::<32>::try_from(any);
+            assert!(res.is_err(), "header with zero timestamp should fail");
+        }
+
         let update = gen_light_client_update_with_params::<32, _>(
             &ctx,
             base_signature_slot,
@@ -206,6 +290,7 @@ mod tests {
             dummy_execution_block_number.into(),
             current_sync_committee,
             scm.get_committee(2),
+            true,
             32,
         );
         let update = to_consensus_update_info(update);
@@ -218,26 +303,18 @@ mod tests {
             consensus_update: update.clone(),
             execution_update: ExecutionUpdateInfo::default(),
             account_update: AccountUpdateInfo::default(),
-            timestamp: Timestamp::from_nanoseconds(1730729158 * 1_000_000_000).unwrap(),
+            timestamp: Timestamp::from_nanoseconds(
+                compute_timestamp_at_slot(&ctx, update.finalized_beacon_header().slot).0
+                    * 1_000_000_000
+                    + 1,
+            )
+            .unwrap(),
         };
-        let any = IBCAny::from(header.clone());
-        let decoded = Header::<32>::try_from(any).unwrap();
-        assert_eq!(header, decoded);
-
-        let header = Header {
-            trusted_sync_committee: TrustedSyncCommittee {
-                height: ibc::Height::new(1, 1).unwrap(),
-                sync_committee: current_sync_committee.to_committee().clone(),
-                is_next: true,
-            },
-            consensus_update: update,
-            execution_update: ExecutionUpdateInfo::default(),
-            account_update: AccountUpdateInfo::default(),
-            timestamp: Timestamp::from_nanoseconds(0).unwrap(),
-        };
-        let any = IBCAny::from(header.clone());
-        let res = Header::<32>::try_from(any);
-        assert!(res.is_err());
+        let res = header.validate(&ctx);
+        assert!(
+            res.is_err(),
+            "header validation should fail for wrong timestamp"
+        );
     }
 
     fn to_consensus_update_info<const SYNC_COMMITTEE_SIZE: usize>(

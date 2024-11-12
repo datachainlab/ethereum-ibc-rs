@@ -27,7 +27,7 @@ pub enum Error {
         Vec<String>,
     ),
     /// consensus update doesn't have next sync committee: store_period={0} update_period={1}
-    NoNextSyncCommitteeInConsensusUpdate(u64, u64),
+    NoNextSyncCommitteeInConsensusUpdate(U64, U64),
     /// invalid current sync committee keys: expected={0:?} actual={1:?}
     InvalidCurrentSyncCommitteeKeys(PublicKey, PublicKey),
     /// invalid next sync committee keys: expected={0:?} actual={1:?}
@@ -40,8 +40,8 @@ pub enum Error {
     AccountStorageRootMismatch(H256, H256, H256, String, Vec<String>),
     /// invalid account storage root: {0:?}
     InvalidAccountStorageRoot(Vec<u8>),
-    /// future period error: store={0} update={1}
-    FuturePeriodError(U64, U64),
+    /// store does not support the finalized_period: store_period={0} finalized_period={1}
+    StoreNotSupportedFinalizedPeriod(U64, U64),
     /// both updates of misbehaviour data must have same period: {0} != {1}
     DifferentPeriodInNextSyncCommitteeMisbehaviour(SyncCommitteePeriod, SyncCommitteePeriod),
     /// both updates of misbehaviour data must have next sync committee
@@ -58,7 +58,7 @@ pub enum Error {
         target_height: Height,
     },
     /// unexpected timestamp: expected={0} got={1}
-    UnexpectedTimestamp(u64, u64),
+    UnexpectedTimestamp(i128, i128),
     /// missing trusting period
     MissingTrustingPeriod,
     /// negative max clock drift
@@ -78,6 +78,8 @@ pub enum Error {
     UninitializedClientStateField(&'static str),
     /// uninitialized consensus state field: {0}
     UninitializedConsensusStateField(&'static str),
+    /// missing bellatrix fork
+    MissingBellatrixFork,
     /// client frozen: frozen_height={frozen_height} target_height={target_height}
     ClientFrozen {
         frozen_height: Height,
@@ -109,6 +111,8 @@ pub enum Error {
     ProtoMissingFieldError(String),
     /// unknown message type: `{0}`
     UnknownMessageType(String),
+    /// cannot initialize frozen client
+    CannotInitializeFrozenClient,
 }
 
 impl Error {

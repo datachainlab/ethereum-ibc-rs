@@ -34,8 +34,10 @@ pub struct ConsensusState {
     /// timestamp from execution payload
     pub timestamp: Timestamp,
     /// aggregate public key of current sync committee
+    /// "current" indicates a period corresponding to the `slot`
     pub current_sync_committee: PublicKey,
     /// aggregate public key of next sync committee
+    /// "next" indicates `current + 1` period
     pub next_sync_committee: PublicKey,
 }
 
@@ -224,36 +226,28 @@ impl<const SYNC_COMMITTEE_SIZE: usize> TrustedConsensusState<SYNC_COMMITTEE_SIZE
             ))
         }
     }
-
-    pub fn current_period<C: ChainContext>(&self, ctx: &C) -> SyncCommitteePeriod {
-        self.state.current_period(ctx)
-    }
 }
 
 impl<const SYNC_COMMITTEE_SIZE: usize> LightClientStoreReader<SYNC_COMMITTEE_SIZE>
     for TrustedConsensusState<SYNC_COMMITTEE_SIZE>
 {
-    fn get_sync_committee<CC: ChainContext>(
-        &self,
-        ctx: &CC,
-        period: SyncCommitteePeriod,
-    ) -> Option<SyncCommittee<SYNC_COMMITTEE_SIZE>> {
-        let store_period = self.current_period(ctx);
-        if period == store_period {
-            self.current_sync_committee.clone()
-        } else if period == store_period + 1 {
-            self.next_sync_committee.clone()
-        } else {
-            None
-        }
+    fn current_period<C: ChainContext>(&self, ctx: &C) -> SyncCommitteePeriod {
+        self.state.current_period(ctx)
+    }
+
+    fn current_sync_committee(&self) -> Option<SyncCommittee<SYNC_COMMITTEE_SIZE>> {
+        self.current_sync_committee.clone()
+    }
+
+    fn next_sync_committee(&self) -> Option<SyncCommittee<SYNC_COMMITTEE_SIZE>> {
+        self.next_sync_committee.clone()
     }
 
     fn ensure_relevant_update<CC: ChainContext, C: ConsensusUpdate<SYNC_COMMITTEE_SIZE>>(
         &self,
-        ctx: &CC,
+        _ctx: &CC,
         update: &C,
     ) -> Result<(), ethereum_light_client_verifier::errors::Error> {
-        update.ensure_consistent_update_period(ctx)?;
         if self.state.slot >= update.finalized_beacon_header().slot {
             Err(
                 ethereum_light_client_verifier::errors::Error::IrrelevantConsensusUpdates(
@@ -277,7 +271,79 @@ impl<const SYNC_COMMITTEE_SIZE: usize> From<TrustedConsensusState<SYNC_COMMITTEE
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ethereum_consensus::types::H256;
+    use ethereum_light_client_verifier::consensus::test_utils::MockSyncCommitteeManager;
+    use hex_literal::hex;
     use time::macros::datetime;
+
+    #[test]
+    fn test_consensus_state_conversion() {
+        let consensus_state = ConsensusState {
+            slot: 1.into(),
+            storage_root: CommitmentRoot::from_bytes(keccak256("storage").as_bytes()),
+            timestamp: Timestamp::from_nanoseconds(
+                datetime!(2023-08-20 0:00 UTC).unix_timestamp_nanos() as u64,
+            )
+            .unwrap(),
+            current_sync_committee: PublicKey::try_from(hex!("a145063e1b5eda80fa55960296f2c4b2c021f75767318ea2572a9f7abb649010b746754ca7fc2ba57c1156881516a357").to_vec()).unwrap(),
+            next_sync_committee: PublicKey::try_from(hex!("a42dffb90d85cec7acfcb53be0e8792155d8f18c0dc9efc2a5587d5a0ba3e578df366fc3e2b743de6ecd3b53e345c266").to_vec()).unwrap(),
+        };
+        let res = consensus_state.validate();
+        assert!(res.is_ok(), "{:?}", res);
+        let any_consensus_state = IBCAny::from(consensus_state.clone());
+        let consensus_state2 = ConsensusState::try_from(any_consensus_state).unwrap();
+        assert_eq!(consensus_state, consensus_state2);
+    }
+
+    #[test]
+    fn test_trusted_consensus_state() {
+        let scm = MockSyncCommitteeManager::<32>::new(1, 2);
+        let current_sync_committee = scm.get_committee(1);
+        let next_sync_committee = scm.get_committee(2);
+
+        let consensus_state = ConsensusState {
+            slot: 64.into(),
+            storage_root: CommitmentRoot::from_bytes(keccak256("storage").as_bytes()),
+            timestamp: Timestamp::from_nanoseconds(
+                datetime!(2023-08-20 0:00 UTC).unix_timestamp_nanos() as u64,
+            )
+            .unwrap(),
+            current_sync_committee: current_sync_committee.to_committee().aggregate_pubkey,
+            next_sync_committee: next_sync_committee.to_committee().aggregate_pubkey,
+        };
+
+        let res = TrustedConsensusState::new(
+            consensus_state.clone(),
+            current_sync_committee.to_committee(),
+            false,
+        );
+        assert!(res.is_ok(), "{:?}", res);
+        let state = res.unwrap();
+        assert!(state.current_sync_committee.is_some());
+        assert!(state.next_sync_committee.is_none());
+        let res = TrustedConsensusState::new(
+            consensus_state.clone(),
+            current_sync_committee.to_committee(),
+            true,
+        );
+        assert!(res.is_err(), "{:?}", res);
+
+        let res = TrustedConsensusState::new(
+            consensus_state.clone(),
+            next_sync_committee.to_committee(),
+            true,
+        );
+        assert!(res.is_ok(), "{:?}", res);
+        let state = res.unwrap();
+        assert!(state.current_sync_committee.is_none());
+        assert!(state.next_sync_committee.is_some());
+        let res = TrustedConsensusState::new(
+            consensus_state.clone(),
+            next_sync_committee.to_committee(),
+            false,
+        );
+        assert!(res.is_err(), "{:?}", res);
+    }
 
     #[test]
     fn test_timestamp() {
@@ -302,5 +368,14 @@ mod tests {
             let it2 = proto_timestamp_to_ibc_timestamp(pt1).unwrap();
             assert_eq!(it1, it2);
         }
+    }
+
+    fn keccak256(s: &str) -> H256 {
+        use tiny_keccak::{Hasher, Keccak};
+        let mut hasher = Keccak::v256();
+        let mut output = [0u8; 32];
+        hasher.update(s.as_bytes());
+        hasher.finalize(&mut output);
+        H256::from_slice(&output)
     }
 }
