@@ -111,6 +111,8 @@ pub enum Error {
     ProtoMissingFieldError(String),
     /// unknown message type: `{0}`
     UnknownMessageType(String),
+    /// cannot initialize frozen client
+    CannotInitializeFrozenClient,
 }
 
 impl Error {

@@ -301,6 +301,9 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
         consensus_state: Any,
     ) -> Result<Box<dyn Ics02ConsensusState>, ClientError> {
         self.validate()?;
+        if self.is_frozen() {
+            return Err(Error::CannotInitializeFrozenClient.into());
+        }
         let consensus_state = ConsensusState::try_from(consensus_state)?;
         consensus_state.validate()?;
         Ok(ConsensusState::into_box(consensus_state))
