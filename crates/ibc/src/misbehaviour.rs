@@ -31,8 +31,11 @@ pub const ETHEREUM_NEXT_SYNC_COMMITTEE_MISBEHAVIOUR_TYPE_URL: &str =
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Misbehaviour<const SYNC_COMMITTEE_SIZE: usize> {
+    /// The client identifier
     pub client_id: ClientId,
+    /// The sync committee related to the misbehaviour
     pub trusted_sync_committee: TrustedSyncCommittee<SYNC_COMMITTEE_SIZE>,
+    /// The misbehaviour data
     pub data: MisbehaviourData<SYNC_COMMITTEE_SIZE, ConsensusUpdateInfo<SYNC_COMMITTEE_SIZE>>,
 }
 
