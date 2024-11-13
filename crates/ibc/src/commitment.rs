@@ -5,7 +5,10 @@ use ibc::core::ics24_host::Path;
 use rlp::Rlp;
 use tiny_keccak::{Hasher, Keccak};
 
-pub fn calculate_ibc_commitment_storage_key(ibc_commitments_slot: &H256, path: Path) -> H256 {
+/// Calculate the storage location for the commitment stored in the IBC contract
+///
+/// The spec is here: https://github.com/hyperledger-labs/yui-ibc-solidity/blob/0e83dc7aadf71380dae6e346492e148685510663/docs/architecture.md#L46
+pub fn calculate_ibc_commitment_storage_location(ibc_commitments_slot: &H256, path: Path) -> H256 {
     keccak_256(
         &[
             &keccak_256(&path.into_bytes()),

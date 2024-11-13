@@ -1,4 +1,4 @@
-use crate::commitment::{calculate_ibc_commitment_storage_key, decode_eip1184_rlp_proof};
+use crate::commitment::{calculate_ibc_commitment_storage_location, decode_eip1184_rlp_proof};
 use crate::consensus_state::{ConsensusState, TrustedConsensusState};
 use crate::errors::Error;
 use crate::header::Header;
@@ -201,7 +201,8 @@ impl<const SYNC_COMMITTEE_SIZE: usize> ClientState<SYNC_COMMITTEE_SIZE> {
                 ),
             });
         }
-        let key = calculate_ibc_commitment_storage_key(&self.ibc_commitments_slot, path.clone());
+        let key =
+            calculate_ibc_commitment_storage_location(&self.ibc_commitments_slot, path.clone());
         self.execution_verifier
             .verify_membership(
                 root,
@@ -239,7 +240,8 @@ impl<const SYNC_COMMITTEE_SIZE: usize> ClientState<SYNC_COMMITTEE_SIZE> {
                 ),
             });
         }
-        let key = calculate_ibc_commitment_storage_key(&self.ibc_commitments_slot, path.clone());
+        let key =
+            calculate_ibc_commitment_storage_location(&self.ibc_commitments_slot, path.clone());
         self.execution_verifier
             .verify_non_membership(root, key.as_bytes(), proof.clone())
             .map_err(|e| ClientError::ClientSpecific {
