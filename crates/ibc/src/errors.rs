@@ -117,6 +117,20 @@ pub enum Error {
     CannotInitializeFrozenClient,
     /// unexpected client ID in misbehaviour: expected={0} got={1}
     UnexpectedClientIdInMisbehaviour(ClientId, ClientId),
+    /// Processed time for the client `{client_id}` at height `{height}` not found
+    ProcessedTimeNotFound { client_id: ClientId, height: Height },
+    /// Processed height for the client `{client_id}` at height `{height}` not found
+    ProcessedHeightNotFound { client_id: ClientId, height: Height },
+    /// not enough time elapsed, current timestamp `{current_timestamp}` is still less than earliest acceptable timestamp `{earliest_time}`
+    NotEnoughTimeElapsed {
+        current_timestamp: Timestamp,
+        earliest_time: Timestamp,
+    },
+    /// not enough blocks elapsed, current height `{current_height}` is still less than earliest acceptable height `{earliest_height}`
+    NotEnoughBlocksElapsed {
+        current_height: Height,
+        earliest_height: Height,
+    },
 }
 
 impl Error {

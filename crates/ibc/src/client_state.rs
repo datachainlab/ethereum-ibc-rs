@@ -22,6 +22,7 @@ use ibc::core::ics02_client::client_state::{ClientState as Ics2ClientState, Upda
 use ibc::core::ics02_client::client_type::ClientType;
 use ibc::core::ics02_client::consensus_state::ConsensusState as Ics02ConsensusState;
 use ibc::core::ics02_client::error::ClientError;
+use ibc::core::ics03_connection::connection::ConnectionEnd;
 use ibc::core::ics24_host::identifier::{ChainId, ClientId};
 use ibc::core::ics24_host::path::ClientConsensusStatePath;
 use ibc::core::ics24_host::Path;
@@ -578,7 +579,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
 
     fn verify_packet_data(
         &self,
-        _ctx: &dyn ibc::core::ValidationContext,
+        ctx: &dyn ibc::core::ValidationContext,
         proof_height: ibc::Height,
         connection_end: &ibc::core::ics03_connection::connection::ConnectionEnd,
         proof: &ibc::core::ics23_commitment::commitment::CommitmentProofBytes,
@@ -586,6 +587,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
         commitment_path: &ibc::core::ics24_host::path::CommitmentPath,
         commitment: ibc::core::ics04_channel::commitment::PacketCommitment,
     ) -> Result<(), ClientError> {
+        verify_delay_passed(ctx, proof_height, connection_end)?;
         self.verify_membership(
             proof_height,
             connection_end.counterparty().prefix(),
@@ -598,7 +600,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
 
     fn verify_packet_acknowledgement(
         &self,
-        _ctx: &dyn ibc::core::ValidationContext,
+        ctx: &dyn ibc::core::ValidationContext,
         proof_height: ibc::Height,
         connection_end: &ibc::core::ics03_connection::connection::ConnectionEnd,
         proof: &ibc::core::ics23_commitment::commitment::CommitmentProofBytes,
@@ -606,6 +608,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
         ack_path: &ibc::core::ics24_host::path::AckPath,
         ack: ibc::core::ics04_channel::commitment::AcknowledgementCommitment,
     ) -> Result<(), ClientError> {
+        verify_delay_passed(ctx, proof_height, connection_end)?;
         self.verify_membership(
             proof_height,
             connection_end.counterparty().prefix(),
@@ -618,7 +621,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
 
     fn verify_next_sequence_recv(
         &self,
-        _ctx: &dyn ibc::core::ValidationContext,
+        ctx: &dyn ibc::core::ValidationContext,
         proof_height: ibc::Height,
         connection_end: &ibc::core::ics03_connection::connection::ConnectionEnd,
         proof: &ibc::core::ics23_commitment::commitment::CommitmentProofBytes,
@@ -626,6 +629,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
         seq_recv_path: &ibc::core::ics24_host::path::SeqRecvPath,
         sequence: ibc::core::ics04_channel::packet::Sequence,
     ) -> Result<(), ClientError> {
+        verify_delay_passed(ctx, proof_height, connection_end)?;
         let mut seq_bytes = Vec::new();
         u64::from(sequence)
             .encode(&mut seq_bytes)
@@ -643,13 +647,14 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
 
     fn verify_packet_receipt_absence(
         &self,
-        _ctx: &dyn ibc::core::ValidationContext,
+        ctx: &dyn ibc::core::ValidationContext,
         proof_height: ibc::Height,
         connection_end: &ibc::core::ics03_connection::connection::ConnectionEnd,
         proof: &ibc::core::ics23_commitment::commitment::CommitmentProofBytes,
         root: &ibc::core::ics23_commitment::commitment::CommitmentRoot,
         receipt_path: &ibc::core::ics24_host::path::ReceiptPath,
     ) -> Result<(), ClientError> {
+        verify_delay_passed(ctx, proof_height, connection_end)?;
         self.verify_non_membership(
             proof_height,
             connection_end.counterparty().prefix(),
@@ -956,6 +961,58 @@ fn trim_left_zero(value: &[u8]) -> &[u8] {
         pos += 1;
     }
     &value[pos..]
+}
+
+// A copy from https://github.com/cosmos/ibc-rs/blob/eea4f0e7a1887f2f1cb18a550d08bb805a08240a/crates/ibc/src/clients/ics07_tendermint/client_state.rs#L1031
+fn verify_delay_passed(
+    ctx: &dyn ValidationContext,
+    height: Height,
+    connection_end: &ConnectionEnd,
+) -> Result<(), ClientError> {
+    let current_timestamp = ctx.host_timestamp().map_err(|e| ClientError::Other {
+        description: e.to_string(),
+    })?;
+    let current_height = ctx.host_height().map_err(|e| ClientError::Other {
+        description: e.to_string(),
+    })?;
+
+    let client_id = connection_end.client_id();
+    let processed_time =
+        ctx.client_update_time(client_id, &height)
+            .map_err(|_| Error::ProcessedTimeNotFound {
+                client_id: client_id.clone(),
+                height,
+            })?;
+    let processed_height = ctx.client_update_height(client_id, &height).map_err(|_| {
+        Error::ProcessedHeightNotFound {
+            client_id: client_id.clone(),
+            height,
+        }
+    })?;
+
+    let delay_period_time = connection_end.delay_period();
+    let delay_period_height = ctx.block_delay(&delay_period_time);
+
+    let earliest_time =
+        (processed_time + delay_period_time).map_err(Error::TimestampOverflowError)?;
+    if !(current_timestamp == earliest_time || current_timestamp.after(&earliest_time)) {
+        return Err(Error::NotEnoughTimeElapsed {
+            current_timestamp,
+            earliest_time,
+        }
+        .into());
+    }
+
+    let earliest_height = processed_height.add(delay_period_height);
+    if current_height < earliest_height {
+        return Err(Error::NotEnoughBlocksElapsed {
+            current_height,
+            earliest_height,
+        }
+        .into());
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
