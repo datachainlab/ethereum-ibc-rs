@@ -62,10 +62,15 @@ impl<const SYNC_COMMITTEE_SIZE: usize> From<ClientMessage<SYNC_COMMITTEE_SIZE>> 
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Header<const SYNC_COMMITTEE_SIZE: usize> {
+    /// trusted sync committee corresponding to the period of the signature slot of the `consensus_update`
     pub trusted_sync_committee: TrustedSyncCommittee<SYNC_COMMITTEE_SIZE>,
+    /// consensus update attested by the `trusted_sync_committee`
     pub consensus_update: ConsensusUpdateInfo<SYNC_COMMITTEE_SIZE>,
+    /// execution update based on the `consensus_update.finalized_header`
     pub execution_update: ExecutionUpdateInfo,
+    /// account update based on the `execution_update.state_root`
     pub account_update: AccountUpdateInfo,
+    /// timestamp of the `consensus_update.finalized_header`
     pub timestamp: Timestamp,
 }
 

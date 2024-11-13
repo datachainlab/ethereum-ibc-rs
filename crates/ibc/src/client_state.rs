@@ -43,29 +43,42 @@ pub const ETHEREUM_ACCOUNT_STORAGE_ROOT_INDEX: usize = 2;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ClientState<const SYNC_COMMITTEE_SIZE: usize> {
-    /// Chain parameters
+    // Verification parameters
+    /// `genesis_validators_root` of the target beacon chain's BeaconState
     pub genesis_validators_root: Root,
+    /// https://github.com/ethereum/consensus-specs/blob/a09d0c321550c5411557674a981e2b444a1178c0/specs/altair/light-client/sync-protocol.md#misc
     pub min_sync_committee_participants: U64,
+    /// `genesis_time` of the target beacon chain's BeaconState
     pub genesis_time: U64,
+    /// fork parameters of the target beacon chain
     pub fork_parameters: ForkParameters,
+    /// https://github.com/ethereum/consensus-specs/blob/a09d0c321550c5411557674a981e2b444a1178c0/configs/mainnet.yaml#L69
     pub seconds_per_slot: U64,
+    /// https://github.com/ethereum/consensus-specs/blob/a09d0c321550c5411557674a981e2b444a1178c0/presets/mainnet/phase0.yaml#L36
     pub slots_per_epoch: Slot,
+    /// https://github.com/ethereum/consensus-specs/blob/a09d0c321550c5411557674a981e2b444a1178c0/presets/mainnet/altair.yaml#L18
     pub epochs_per_sync_committee_period: Epoch,
 
-    /// IBC Solidity parameters
+    /// An address of IBC contract on execution layer
     pub ibc_address: Address,
+    /// The IBC contract's base storage location for storing commitments
+    /// https://github.com/hyperledger-labs/yui-ibc-solidity/blob/0e83dc7aadf71380dae6e346492e148685510663/docs/architecture.md#L46
     pub ibc_commitments_slot: H256,
 
-    /// Light Client parameters
+    /// `trust_level` is threshold of sync committee participants to consider the attestation as valid. Highly recommended to be 2/3.
     pub trust_level: Fraction,
+    /// `trusting_period` is the period in which the consensus state is considered trusted
     pub trusting_period: Duration,
+    /// `max_clock_drift` defines how much new finalized header's time can drift into the future
     pub max_clock_drift: Duration,
 
-    /// State
+    // State
+    /// The latest block number of the stored consensus state
     pub latest_execution_block_number: U64,
+    /// `frozen_height` is the height at which the client is considered frozen. If `None`, the client is unfrozen.
     pub frozen_height: Option<Height>,
 
-    /// Verifier
+    // Verifiers
     #[serde(skip)]
     pub consensus_verifier:
         SyncProtocolVerifier<SYNC_COMMITTEE_SIZE, TrustedConsensusState<SYNC_COMMITTEE_SIZE>>,
