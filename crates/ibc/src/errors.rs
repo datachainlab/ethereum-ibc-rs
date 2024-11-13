@@ -8,7 +8,11 @@ use ethereum_consensus::{
     types::{H256, U64},
 };
 use ibc::{
-    core::{ics02_client::error::ClientError, ics24_host::error::ValidationError, ContextError},
+    core::{
+        ics02_client::error::ClientError,
+        ics24_host::{error::ValidationError, identifier::ClientId},
+        ContextError,
+    },
     timestamp::{ParseTimestampError, Timestamp, TimestampOverflowError},
     Height,
 };
@@ -115,6 +119,8 @@ pub enum Error {
     UnknownMessageType(String),
     /// cannot initialize frozen client
     CannotInitializeFrozenClient,
+    /// unexpected client ID in misbehaviour: expected={0} got={1}
+    UnexpectedClientIdInMisbehaviour(ClientId, ClientId),
 }
 
 impl Error {
