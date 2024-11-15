@@ -8,7 +8,11 @@ use ethereum_consensus::{
     types::{H256, U64},
 };
 use ibc::{
-    core::{ics02_client::error::ClientError, ics24_host::error::ValidationError, ContextError},
+    core::{
+        ics02_client::error::ClientError,
+        ics24_host::{error::ValidationError, identifier::ClientId},
+        ContextError,
+    },
     timestamp::{ParseTimestampError, Timestamp, TimestampOverflowError},
     Height,
 };
@@ -34,12 +38,8 @@ pub enum Error {
     InvalidNextSyncCommitteeKeys(PublicKey, PublicKey),
     /// invalid proof format error: {0}
     InvalidProofFormatError(String),
-    /// rlp decode error: {0}
-    RLPDecodeError(rlp::DecoderError),
     /// account storage root mismatch: expected={0} actual={1} state_root={2} address={3} account_proof={4:?}
     AccountStorageRootMismatch(H256, H256, H256, String, Vec<String>),
-    /// invalid account storage root: {0:?}
-    InvalidAccountStorageRoot(Vec<u8>),
     /// store does not support the finalized_period: store_period={0} finalized_period={1}
     StoreNotSupportedFinalizedPeriod(U64, U64),
     /// both updates of misbehaviour data must have same period: {0} != {1}
@@ -115,6 +115,22 @@ pub enum Error {
     UnknownMessageType(String),
     /// cannot initialize frozen client
     CannotInitializeFrozenClient,
+    /// unexpected client ID in misbehaviour: expected={0} got={1}
+    UnexpectedClientIdInMisbehaviour(ClientId, ClientId),
+    /// Processed time for the client `{client_id}` at height `{height}` not found
+    ProcessedTimeNotFound { client_id: ClientId, height: Height },
+    /// Processed height for the client `{client_id}` at height `{height}` not found
+    ProcessedHeightNotFound { client_id: ClientId, height: Height },
+    /// not enough time elapsed, current timestamp `{current_timestamp}` is still less than earliest acceptable timestamp `{earliest_time}`
+    NotEnoughTimeElapsed {
+        current_timestamp: Timestamp,
+        earliest_time: Timestamp,
+    },
+    /// not enough blocks elapsed, current height `{current_height}` is still less than earliest acceptable height `{earliest_height}`
+    NotEnoughBlocksElapsed {
+        current_height: Height,
+        earliest_height: Height,
+    },
 }
 
 impl Error {
@@ -134,12 +150,6 @@ impl From<Error> for ClientError {
 impl From<Error> for ContextError {
     fn from(value: Error) -> Self {
         ContextError::ClientError(value.into())
-    }
-}
-
-impl From<rlp::DecoderError> for Error {
-    fn from(value: rlp::DecoderError) -> Self {
-        Error::RLPDecodeError(value)
     }
 }
 

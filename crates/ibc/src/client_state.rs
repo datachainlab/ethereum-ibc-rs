@@ -1,4 +1,4 @@
-use crate::commitment::{calculate_ibc_commitment_storage_key, decode_eip1184_rlp_proof};
+use crate::commitment::{calculate_ibc_commitment_storage_location, decode_eip1184_rlp_proof};
 use crate::consensus_state::{ConsensusState, TrustedConsensusState};
 use crate::errors::Error;
 use crate::header::Header;
@@ -22,6 +22,7 @@ use ibc::core::ics02_client::client_state::{ClientState as Ics2ClientState, Upda
 use ibc::core::ics02_client::client_type::ClientType;
 use ibc::core::ics02_client::consensus_state::ConsensusState as Ics02ConsensusState;
 use ibc::core::ics02_client::error::ClientError;
+use ibc::core::ics03_connection::connection::ConnectionEnd;
 use ibc::core::ics24_host::identifier::{ChainId, ClientId};
 use ibc::core::ics24_host::path::ClientConsensusStatePath;
 use ibc::core::ics24_host::Path;
@@ -43,29 +44,42 @@ pub const ETHEREUM_ACCOUNT_STORAGE_ROOT_INDEX: usize = 2;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ClientState<const SYNC_COMMITTEE_SIZE: usize> {
-    /// Chain parameters
+    // Verification parameters
+    /// `genesis_validators_root` of the target beacon chain's BeaconState
     pub genesis_validators_root: Root,
+    /// https://github.com/ethereum/consensus-specs/blob/a09d0c321550c5411557674a981e2b444a1178c0/specs/altair/light-client/sync-protocol.md#misc
     pub min_sync_committee_participants: U64,
+    /// `genesis_time` of the target beacon chain's BeaconState
     pub genesis_time: U64,
+    /// fork parameters of the target beacon chain
     pub fork_parameters: ForkParameters,
+    /// https://github.com/ethereum/consensus-specs/blob/a09d0c321550c5411557674a981e2b444a1178c0/configs/mainnet.yaml#L69
     pub seconds_per_slot: U64,
+    /// https://github.com/ethereum/consensus-specs/blob/a09d0c321550c5411557674a981e2b444a1178c0/presets/mainnet/phase0.yaml#L36
     pub slots_per_epoch: Slot,
+    /// https://github.com/ethereum/consensus-specs/blob/a09d0c321550c5411557674a981e2b444a1178c0/presets/mainnet/altair.yaml#L18
     pub epochs_per_sync_committee_period: Epoch,
 
-    /// IBC Solidity parameters
+    /// An address of IBC contract on execution layer
     pub ibc_address: Address,
+    /// The IBC contract's base storage location for storing commitments
+    /// https://github.com/hyperledger-labs/yui-ibc-solidity/blob/0e83dc7aadf71380dae6e346492e148685510663/docs/architecture.md#L46
     pub ibc_commitments_slot: H256,
 
-    /// Light Client parameters
+    /// `trust_level` is threshold of sync committee participants to consider the attestation as valid. Highly recommended to be 2/3.
     pub trust_level: Fraction,
+    /// `trusting_period` is the period in which the consensus state is considered trusted
     pub trusting_period: Duration,
+    /// `max_clock_drift` defines how much new finalized header's time can drift into the future
     pub max_clock_drift: Duration,
 
-    /// State
+    // State
+    /// The latest block number of the stored consensus state
     pub latest_execution_block_number: U64,
+    /// `frozen_height` is the height at which the client is considered frozen. If `None`, the client is unfrozen.
     pub frozen_height: Option<Height>,
 
-    /// Verifier
+    // Verifiers
     #[serde(skip)]
     pub consensus_verifier:
         SyncProtocolVerifier<SYNC_COMMITTEE_SIZE, TrustedConsensusState<SYNC_COMMITTEE_SIZE>>,
@@ -188,7 +202,8 @@ impl<const SYNC_COMMITTEE_SIZE: usize> ClientState<SYNC_COMMITTEE_SIZE> {
                 ),
             });
         }
-        let key = calculate_ibc_commitment_storage_key(&self.ibc_commitments_slot, path.clone());
+        let key =
+            calculate_ibc_commitment_storage_location(&self.ibc_commitments_slot, path.clone());
         self.execution_verifier
             .verify_membership(
                 root,
@@ -226,7 +241,8 @@ impl<const SYNC_COMMITTEE_SIZE: usize> ClientState<SYNC_COMMITTEE_SIZE> {
                 ),
             });
         }
-        let key = calculate_ibc_commitment_storage_key(&self.ibc_commitments_slot, path.clone());
+        let key =
+            calculate_ibc_commitment_storage_location(&self.ibc_commitments_slot, path.clone());
         self.execution_verifier
             .verify_non_membership(root, key.as_bytes(), proof.clone())
             .map_err(|e| ClientError::ClientSpecific {
@@ -424,6 +440,12 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
         }
         let misbehaviour = Misbehaviour::<SYNC_COMMITTEE_SIZE>::try_from(misbehaviour)?;
         misbehaviour.validate()?;
+        if misbehaviour.client_id != client_id {
+            return Err(
+                Error::UnexpectedClientIdInMisbehaviour(client_id, misbehaviour.client_id).into(),
+            );
+        }
+
         let consensus_state = match maybe_consensus_state(
             ctx,
             &ClientConsensusStatePath::new(&client_id, &misbehaviour.trusted_sync_committee.height),
@@ -557,7 +579,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
 
     fn verify_packet_data(
         &self,
-        _ctx: &dyn ibc::core::ValidationContext,
+        ctx: &dyn ibc::core::ValidationContext,
         proof_height: ibc::Height,
         connection_end: &ibc::core::ics03_connection::connection::ConnectionEnd,
         proof: &ibc::core::ics23_commitment::commitment::CommitmentProofBytes,
@@ -565,6 +587,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
         commitment_path: &ibc::core::ics24_host::path::CommitmentPath,
         commitment: ibc::core::ics04_channel::commitment::PacketCommitment,
     ) -> Result<(), ClientError> {
+        verify_delay_passed(ctx, proof_height, connection_end)?;
         self.verify_membership(
             proof_height,
             connection_end.counterparty().prefix(),
@@ -577,7 +600,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
 
     fn verify_packet_acknowledgement(
         &self,
-        _ctx: &dyn ibc::core::ValidationContext,
+        ctx: &dyn ibc::core::ValidationContext,
         proof_height: ibc::Height,
         connection_end: &ibc::core::ics03_connection::connection::ConnectionEnd,
         proof: &ibc::core::ics23_commitment::commitment::CommitmentProofBytes,
@@ -585,6 +608,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
         ack_path: &ibc::core::ics24_host::path::AckPath,
         ack: ibc::core::ics04_channel::commitment::AcknowledgementCommitment,
     ) -> Result<(), ClientError> {
+        verify_delay_passed(ctx, proof_height, connection_end)?;
         self.verify_membership(
             proof_height,
             connection_end.counterparty().prefix(),
@@ -597,7 +621,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
 
     fn verify_next_sequence_recv(
         &self,
-        _ctx: &dyn ibc::core::ValidationContext,
+        ctx: &dyn ibc::core::ValidationContext,
         proof_height: ibc::Height,
         connection_end: &ibc::core::ics03_connection::connection::ConnectionEnd,
         proof: &ibc::core::ics23_commitment::commitment::CommitmentProofBytes,
@@ -605,6 +629,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
         seq_recv_path: &ibc::core::ics24_host::path::SeqRecvPath,
         sequence: ibc::core::ics04_channel::packet::Sequence,
     ) -> Result<(), ClientError> {
+        verify_delay_passed(ctx, proof_height, connection_end)?;
         let mut seq_bytes = Vec::new();
         u64::from(sequence)
             .encode(&mut seq_bytes)
@@ -622,13 +647,14 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Ics2ClientState for ClientState<SYNC_COMM
 
     fn verify_packet_receipt_absence(
         &self,
-        _ctx: &dyn ibc::core::ValidationContext,
+        ctx: &dyn ibc::core::ValidationContext,
         proof_height: ibc::Height,
         connection_end: &ibc::core::ics03_connection::connection::ConnectionEnd,
         proof: &ibc::core::ics23_commitment::commitment::CommitmentProofBytes,
         root: &ibc::core::ics23_commitment::commitment::CommitmentRoot,
         receipt_path: &ibc::core::ics24_host::path::ReceiptPath,
     ) -> Result<(), ClientError> {
+        verify_delay_passed(ctx, proof_height, connection_end)?;
         self.verify_non_membership(
             proof_height,
             connection_end.counterparty().prefix(),
@@ -935,6 +961,58 @@ fn trim_left_zero(value: &[u8]) -> &[u8] {
         pos += 1;
     }
     &value[pos..]
+}
+
+// A copy from https://github.com/cosmos/ibc-rs/blob/eea4f0e7a1887f2f1cb18a550d08bb805a08240a/crates/ibc/src/clients/ics07_tendermint/client_state.rs#L1031
+fn verify_delay_passed(
+    ctx: &dyn ValidationContext,
+    height: Height,
+    connection_end: &ConnectionEnd,
+) -> Result<(), ClientError> {
+    let current_timestamp = ctx.host_timestamp().map_err(|e| ClientError::Other {
+        description: e.to_string(),
+    })?;
+    let current_height = ctx.host_height().map_err(|e| ClientError::Other {
+        description: e.to_string(),
+    })?;
+
+    let client_id = connection_end.client_id();
+    let processed_time =
+        ctx.client_update_time(client_id, &height)
+            .map_err(|_| Error::ProcessedTimeNotFound {
+                client_id: client_id.clone(),
+                height,
+            })?;
+    let processed_height = ctx.client_update_height(client_id, &height).map_err(|_| {
+        Error::ProcessedHeightNotFound {
+            client_id: client_id.clone(),
+            height,
+        }
+    })?;
+
+    let delay_period_time = connection_end.delay_period();
+    let delay_period_height = ctx.block_delay(&delay_period_time);
+
+    let earliest_time =
+        (processed_time + delay_period_time).map_err(Error::TimestampOverflowError)?;
+    if !(current_timestamp == earliest_time || current_timestamp.after(&earliest_time)) {
+        return Err(Error::NotEnoughTimeElapsed {
+            current_timestamp,
+            earliest_time,
+        }
+        .into());
+    }
+
+    let earliest_height = processed_height.add(delay_period_height);
+    if current_height < earliest_height {
+        return Err(Error::NotEnoughBlocksElapsed {
+            current_height,
+            earliest_height,
+        }
+        .into());
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
