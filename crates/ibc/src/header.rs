@@ -12,6 +12,7 @@ use crate::types::{
 use bytes::Buf;
 use ethereum_consensus::compute::compute_timestamp_at_slot;
 use ethereum_consensus::context::ChainContext;
+use ethereum_consensus::types::U64;
 use ethereum_ibc_proto::ibc::lightclients::ethereum::v1::Header as RawHeader;
 use ethereum_light_client_verifier::updates::ConsensusUpdate;
 use ibc::core::ics02_client::error::ClientError;
@@ -85,6 +86,9 @@ impl<const SYNC_COMMITTEE_SIZE: usize> Header<SYNC_COMMITTEE_SIZE> {
         self.trusted_sync_committee.validate()?;
         if self.timestamp.into_tm_time().is_none() {
             return Err(Error::ZeroTimestampError);
+        }
+        if self.execution_update.block_number == U64(0) {
+            return Err(Error::ZeroBlockNumberError);
         }
         let header_timestamp_nanos = self
             .timestamp
@@ -237,7 +241,7 @@ mod tests {
         let dummy_execution_block_number = 1;
 
         for b in [false, true] {
-            let update = gen_light_client_update_with_params::<32, _>(
+            let (update, _) = gen_light_client_update_with_params::<32, _>(
                 &ctx,
                 base_signature_slot,
                 base_attested_slot,
@@ -257,7 +261,10 @@ mod tests {
                     is_next: true,
                 },
                 consensus_update: update.clone(),
-                execution_update: ExecutionUpdateInfo::default(),
+                execution_update: ExecutionUpdateInfo {
+                    block_number: U64(2),
+                    ..Default::default()
+                },
                 account_update: AccountUpdateInfo::default(),
                 timestamp: Timestamp::from_nanoseconds(
                     compute_timestamp_at_slot(&ctx, update.finalized_beacon_header().slot).0
@@ -278,7 +285,10 @@ mod tests {
                     is_next: true,
                 },
                 consensus_update: update,
-                execution_update: ExecutionUpdateInfo::default(),
+                execution_update: ExecutionUpdateInfo {
+                    block_number: U64(2),
+                    ..Default::default()
+                },
                 account_update: AccountUpdateInfo::default(),
                 timestamp: Timestamp::from_nanoseconds(0).unwrap(),
             };
@@ -287,7 +297,7 @@ mod tests {
             assert!(res.is_err(), "header with zero timestamp should fail");
         }
 
-        let update = gen_light_client_update_with_params::<32, _>(
+        let (update, _) = gen_light_client_update_with_params::<32, _>(
             &ctx,
             base_signature_slot,
             base_attested_slot,

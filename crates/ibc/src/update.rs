@@ -177,7 +177,7 @@ mod tests {
 
         {
             // store_period == finalized_period == attested_period == signature_period
-            let update = to_consensus_update_info(gen_light_client_update_with_params::<32, _>(
+            let (update, _) = gen_light_client_update_with_params::<32, _>(
                 &ctx,
                 base_signature_slot,
                 base_attested_slot,
@@ -188,7 +188,8 @@ mod tests {
                 scm.get_committee(base_store_period + 1),
                 true,
                 32,
-            ));
+            );
+            let update = to_consensus_update_info(update);
             let new_block_number = 2.into();
             let res = apply_updates(
                 &ctx,
@@ -226,7 +227,7 @@ mod tests {
         }
         {
             // store_period + 1 == finalized_period == attested_period == signature_period
-            let update = to_consensus_update_info(gen_light_client_update_with_params::<32, _>(
+            let (update, _) = gen_light_client_update_with_params::<32, _>(
                 &ctx,
                 base_signature_slot + slots_per_period,
                 base_attested_slot + slots_per_period,
@@ -237,7 +238,8 @@ mod tests {
                 scm.get_committee(base_store_period + 2),
                 true,
                 32,
-            ));
+            );
+            let update = to_consensus_update_info(update);
             let new_block_number = 2.into();
             let res = apply_updates(
                 &ctx,
@@ -276,7 +278,7 @@ mod tests {
         {
             // store_period + 1 == finalized_period == attested_period == signature_period
             // but the update has no next sync committee
-            let update = to_consensus_update_info(gen_light_client_update_with_params::<32, _>(
+            let (update, _) = gen_light_client_update_with_params::<32, _>(
                 &ctx,
                 base_signature_slot + slots_per_period,
                 base_attested_slot + slots_per_period,
@@ -287,7 +289,8 @@ mod tests {
                 scm.get_committee(base_store_period + 2),
                 false,
                 32,
-            ));
+            );
+            let update = to_consensus_update_info(update);
             let new_block_number = 2.into();
             let res = apply_updates(
                 &ctx,
@@ -314,7 +317,7 @@ mod tests {
         }
         {
             // finalized_period - 1 == store_period == attested_period == signature_period
-            let update = to_consensus_update_info(gen_light_client_update_with_params::<32, _>(
+            let (update, _) = gen_light_client_update_with_params::<32, _>(
                 &ctx,
                 base_signature_slot,
                 base_attested_slot,
@@ -325,7 +328,8 @@ mod tests {
                 scm.get_committee(base_store_period),
                 true,
                 32,
-            ));
+            );
+            let update = to_consensus_update_info(update);
             let new_block_number = 2.into();
             let res = apply_updates(
                 &ctx,
