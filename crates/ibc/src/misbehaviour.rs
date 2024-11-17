@@ -245,7 +245,7 @@ mod tests {
         let dummy_execution_state_root = [1u8; 32].into();
         let dummy_execution_block_number = 1;
 
-        let update_1 = gen_light_client_update_with_params::<32, _>(
+        let (update_1, _) = gen_light_client_update_with_params::<32, _>(
             &ctx,
             base_signature_slot,
             base_attested_slot,
@@ -257,7 +257,7 @@ mod tests {
             true,
             32,
         );
-        let update_2 = gen_light_client_update_with_params::<32, _>(
+        let (update_2, _) = gen_light_client_update_with_params::<32, _>(
             &ctx,
             base_signature_slot,
             base_attested_slot,
@@ -288,7 +288,7 @@ mod tests {
         assert_eq!(misbehaviour, decoded);
 
         let different_dummy_execution_state_root = [2u8; 32].into();
-        let update_3 = gen_light_client_update_with_params::<32, _>(
+        let (update_3, _) = gen_light_client_update_with_params::<32, _>(
             &ctx,
             base_signature_slot,
             base_attested_slot,

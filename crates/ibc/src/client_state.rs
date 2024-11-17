@@ -33,6 +33,7 @@ use ibc_proto::google::protobuf::Any;
 use ibc_proto::protobuf::Protobuf;
 use prost::Message;
 use serde::{Deserialize, Serialize};
+use tiny_keccak::{Hasher, Keccak};
 
 /// The revision number for the Ethereum light client is always 0.
 ///
@@ -204,11 +205,12 @@ impl<const SYNC_COMMITTEE_SIZE: usize> ClientState<SYNC_COMMITTEE_SIZE> {
         }
         let key =
             calculate_ibc_commitment_storage_location(&self.ibc_commitments_slot, path.clone());
+        let commitment = Self::keccak256(&value);
         self.execution_verifier
             .verify_membership(
                 root,
                 key.as_bytes(),
-                rlp::encode(&trim_left_zero(&value)).as_ref(),
+                rlp::encode(&trim_left_zero(commitment.as_bytes())).as_ref(),
                 proof.clone(),
             )
             .map_err(|e| ClientError::ClientSpecific {
@@ -313,6 +315,14 @@ impl<const SYNC_COMMITTEE_SIZE: usize> ClientState<SYNC_COMMITTEE_SIZE> {
         } else {
             Ok(())
         }
+    }
+
+    fn keccak256(bz: &[u8]) -> H256 {
+        let mut hasher = Keccak::v256();
+        let mut output = [0u8; 32];
+        hasher.update(bz);
+        hasher.finalize(&mut output);
+        H256::from_slice(&output)
     }
 }
 
@@ -1018,6 +1028,7 @@ fn verify_delay_passed(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core::str::FromStr;
     use ethereum_consensus::fork::{
         altair::ALTAIR_FORK_SPEC, bellatrix::BELLATRIX_FORK_SPEC, capella::CAPELLA_FORK_SPEC,
         deneb::DENEB_FORK_SPEC,
@@ -1122,6 +1133,76 @@ mod tests {
             },
         );
         assert!(res.is_ok(), "{:?}", res);
+    }
+
+    #[test]
+    fn test_verify_membership() {
+        let client_state =
+            ClientState::<{ ethereum_consensus::preset::minimal::PRESET.SYNC_COMMITTEE_SIZE }> {
+                ibc_address: Address(hex!("a7f733a4fEA1071f58114b203F57444969b86524")),
+                ibc_commitments_slot: H256(hex!(
+                    "1ee222554989dda120e26ecacf756fe1235cd8d726706b57517715dde4f0c900"
+                )),
+                latest_execution_block_number: 1.into(),
+                ..Default::default()
+            };
+        let root = hex!("27cd08827e6bf1e435832f4b2660107beb562314287b3fa534f3b189574c0cca")
+            .to_vec()
+            .into();
+        let (path, proof, value) = get_membership_proof();
+        let proof_height = Height::new(ETHEREUM_CLIENT_REVISION_NUMBER, 1).unwrap();
+        let res = client_state.verify_membership(
+            proof_height,
+            &Default::default(),
+            &proof.try_into().unwrap(),
+            &root,
+            Path::from_str(&path).unwrap(),
+            value,
+        );
+        assert!(res.is_ok(), "{:?}", res);
+    }
+
+    #[test]
+    fn test_verify_non_membership() {
+        let client_state =
+            ClientState::<{ ethereum_consensus::preset::minimal::PRESET.SYNC_COMMITTEE_SIZE }> {
+                ibc_address: Address(hex!("a7f733a4fEA1071f58114b203F57444969b86524")),
+                ibc_commitments_slot: H256(hex!(
+                    "1ee222554989dda120e26ecacf756fe1235cd8d726706b57517715dde4f0c900"
+                )),
+                latest_execution_block_number: 1.into(),
+                ..Default::default()
+            };
+        let root = hex!("27cd08827e6bf1e435832f4b2660107beb562314287b3fa534f3b189574c0cca")
+            .to_vec()
+            .into();
+        let (path, proof) = get_non_membership_proof();
+        let proof_height = Height::new(ETHEREUM_CLIENT_REVISION_NUMBER, 1).unwrap();
+        let res = client_state.verify_non_membership(
+            proof_height,
+            &Default::default(),
+            &proof.try_into().unwrap(),
+            &root,
+            Path::from_str(&path).unwrap(),
+        );
+        assert!(res.is_ok(), "{:?}", res);
+    }
+
+    // returns: (path, proof, value)
+    fn get_membership_proof() -> (String, Vec<u8>, Vec<u8>) {
+        (
+            "clients/lcp-client-0/clientState".to_string(),
+            hex!("f90159f901118080a0143145e818eeff83817419a6632ea193fd1acaa4f791eb17282f623f38117f56a0e6ee0a993a7254ee9253d766ea005aec74eb1e11656961f0fb11323f4f91075580808080a01efae04adc2e970b4af3517581f41ce2ba4ff60492d33696c1e2a5ab70cb55bba03bac3f5124774e41fb6efdd7219530846f9f6441045c4666d2855c6598cfca00a020d7122ffc86cb37228940b5a9441e9fd272a3450245c9130ca3ab00bc1cd6ef80a0047f255205a0f2b0e7d29d490abf02bfb62c3ed201c338bc7f0088fa9c5d77eda069fecc766fcb2df04eb3a834b1f4ba134df2be114479e251d9cc9b6ba493077b80a094c3ed6a7ef63a6a67e46cc9876b9b1882eeba3d28e6d61bb15cdfb207d077e180f843a03e077f3dfd0489e70c68282ced0126c62fcef50acdcb7f57aa4552b87b456b11a1a05dc044e92e82db28c96fd98edd502949612b06e8da6dd74664a43a5ed857b298").to_vec(),
+            hex!("0a242f6962632e6c69676874636c69656e74732e6c63702e76312e436c69656e74537461746512ed010a208083673c69fe3f098ea79a799d9dbb99c39b4b4f17a1a79ef58bdf8ae86299951080f524220310fb012a1353575f48415244454e494e475f4e45454445442a1147524f55505f4f55545f4f465f44415445320e494e54454c2d53412d3030323139320e494e54454c2d53412d3030323839320e494e54454c2d53412d3030333334320e494e54454c2d53412d3030343737320e494e54454c2d53412d3030363134320e494e54454c2d53412d3030363135320e494e54454c2d53412d3030363137320e494e54454c2d53412d30303832383a14cb96f8d6c2d543102184d679d7829b39434e4eec48015001").to_vec()
+        )
+    }
+
+    // returns: (path, proof)
+    fn get_non_membership_proof() -> (String, Vec<u8>) {
+        (
+            "clients/lcp-client-1/clientState".to_string(),
+            hex!("f90114f901118080a0143145e818eeff83817419a6632ea193fd1acaa4f791eb17282f623f38117f56a0e6ee0a993a7254ee9253d766ea005aec74eb1e11656961f0fb11323f4f91075580808080a01efae04adc2e970b4af3517581f41ce2ba4ff60492d33696c1e2a5ab70cb55bba03bac3f5124774e41fb6efdd7219530846f9f6441045c4666d2855c6598cfca00a020d7122ffc86cb37228940b5a9441e9fd272a3450245c9130ca3ab00bc1cd6ef80a0047f255205a0f2b0e7d29d490abf02bfb62c3ed201c338bc7f0088fa9c5d77eda069fecc766fcb2df04eb3a834b1f4ba134df2be114479e251d9cc9b6ba493077b80a094c3ed6a7ef63a6a67e46cc9876b9b1882eeba3d28e6d61bb15cdfb207d077e180").to_vec()
+        )
     }
 
     #[test]

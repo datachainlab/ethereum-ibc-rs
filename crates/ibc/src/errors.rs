@@ -99,6 +99,8 @@ pub enum Error {
     ContextError(ContextError),
     /// zero timestamp error
     ZeroTimestampError,
+    /// zero block number error
+    ZeroBlockNumberError,
     /// timestamp overflow error: `{0}`
     TimestampOverflowError(TimestampOverflowError),
     /// parse timestamp error: `{0}`
