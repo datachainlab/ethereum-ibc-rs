@@ -229,7 +229,7 @@ mod tests {
             config::minimal::get_config(),
             Default::default(),
             Default::default(),
-            Fraction::new(2, 3),
+            Fraction::new(2, 3).unwrap(),
             SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap()
