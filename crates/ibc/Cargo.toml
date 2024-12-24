@@ -16,10 +16,10 @@ ssz-rs = { git = "https://github.com/bluele/ssz_rs", branch = "serde-no-std", de
 hex = { version = "0.4.3", default-features = false }
 
 ethereum-ibc-proto = { path = "../../proto", default-features = false }
-ethereum-consensus = { git = "https://github.com/datachainlab/ethereum-light-client-rs", rev = "a9a27ae291c716c68ea3bce9882c849a349b7e9f", default-features = false }
-ethereum-light-client-verifier = { git = "https://github.com/datachainlab/ethereum-light-client-rs", rev = "a9a27ae291c716c68ea3bce9882c849a349b7e9f", default-features = false }
+ethereum-consensus = { git = "https://github.com/datachainlab/ethereum-light-client-rs", rev = "v0.2.0", default-features = false }
+ethereum-light-client-verifier = { git = "https://github.com/datachainlab/ethereum-light-client-rs", rev = "v0.2.0", default-features = false }
 
 [dev-dependencies]
 time = { version = "0.3", default-features = false, features = ["macros", "parsing"] }
 hex-literal = "0.4.1"
-ethereum-light-client-verifier = { git = "https://github.com/datachainlab/ethereum-light-client-rs", rev = "a9a27ae291c716c68ea3bce9882c849a349b7e9f", default-features = false, features = ["test-utils"] }
+ethereum-light-client-verifier = { git = "https://github.com/datachainlab/ethereum-light-client-rs", rev = "v0.2.0", default-features = false, features = ["test-utils"] }
