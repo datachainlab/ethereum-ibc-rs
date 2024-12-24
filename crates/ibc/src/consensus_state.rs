@@ -53,6 +53,10 @@ impl ConsensusState {
             Err(Error::UninitializedConsensusStateField(
                 "current_sync_committee",
             ))
+        } else if self.next_sync_committee == PublicKey::default() {
+            Err(Error::UninitializedConsensusStateField(
+                "next_sync_committee",
+            ))
         } else {
             Ok(())
         }

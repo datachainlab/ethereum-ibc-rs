@@ -110,7 +110,7 @@ mod tests {
             config::minimal::get_config(),
             Default::default(),
             Default::default(),
-            Fraction::new(2, 3),
+            Fraction::new(2, 3).unwrap(),
             SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap()
@@ -149,7 +149,7 @@ mod tests {
                 epochs_per_sync_committee_period: PRESET.EPOCHS_PER_SYNC_COMMITTEE_PERIOD,
                 ibc_address: Address(hex!("ff77D90D6aA12db33d3Ba50A34fB25401f6e4c4F")),
                 ibc_commitments_slot: keccak256("ibc_commitments_slot"),
-                trust_level: Fraction::new(2, 3),
+                trust_level: Fraction::new(2, 3).unwrap(),
                 trusting_period: Duration::from_secs(60 * 60 * 27),
                 max_clock_drift: Duration::from_secs(60),
                 latest_execution_block_number: 1.into(),

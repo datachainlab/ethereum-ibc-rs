@@ -813,7 +813,8 @@ impl<const SYNC_COMMITTEE_SIZE: usize> TryFrom<RawClientState>
             epochs_per_sync_committee_period: value.epochs_per_sync_committee_period.into(),
             ibc_address: value.ibc_address.as_slice().try_into()?,
             ibc_commitments_slot: H256::from_slice(&value.ibc_commitments_slot),
-            trust_level: Fraction::new(trust_level.numerator, trust_level.denominator),
+            trust_level: Fraction::new(trust_level.numerator, trust_level.denominator)
+                .map_err(Error::VerificationError)?,
             trusting_period: value
                 .trusting_period
                 .ok_or(Error::MissingTrustingPeriod)?
@@ -879,8 +880,8 @@ impl<const SYNC_COMMITTEE_SIZE: usize> From<ClientState<SYNC_COMMITTEE_SIZE>> fo
             ibc_address: value.ibc_address.0.to_vec(),
             ibc_commitments_slot: value.ibc_commitments_slot.as_bytes().to_vec(),
             trust_level: Some(ProtoFraction {
-                numerator: value.trust_level.numerator,
-                denominator: value.trust_level.denominator,
+                numerator: value.trust_level.numerator(),
+                denominator: value.trust_level.denominator(),
             }),
             trusting_period: Some(value.trusting_period.into()),
             max_clock_drift: Some(value.max_clock_drift.into()),
@@ -1059,7 +1060,7 @@ mod tests {
                 epochs_per_sync_committee_period: PRESET.EPOCHS_PER_SYNC_COMMITTEE_PERIOD,
                 ibc_address: Address(hex!("ff77D90D6aA12db33d3Ba50A34fB25401f6e4c4F")),
                 ibc_commitments_slot: keccak256("ibc_commitments_slot"),
-                trust_level: Fraction::new(2, 3),
+                trust_level: Fraction::new(2, 3).unwrap(),
                 trusting_period: Duration::from_secs(60 * 60 * 27),
                 max_clock_drift: Duration::from_secs(60),
                 latest_execution_block_number: 1.into(),
